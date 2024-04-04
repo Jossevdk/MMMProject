@@ -85,13 +85,12 @@ class UCHIE:
         for n in range(1, Nt):
             X = self.implicit(n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source)
             Ex = self.explicit(Ex, X[Nx+1:,:], dy, dt, eps,)
-            print(X[Nx+1:,:])
             data_time.append(dt*n)
             data.append(Ex)
         
         return data_time, data
 
-
+    # TODO animate_field function doesn't work at all, I don't see the fields
     def animate_field(self, t, data, source):
         fig, ax = plt.subplots()
 
