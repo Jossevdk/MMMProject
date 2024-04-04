@@ -31,7 +31,7 @@ class UCHIE:
         # self.Ly = Ly
     
 
-    def initialize(self, Nx, Ny):
+    def initialize(self, Nx, Ny, eps, mu):
         # Ey = np.zeros(Nx+1, Ny)
         # Hz = Ey
 
@@ -44,44 +44,88 @@ class UCHIE:
         np.fill_diagonal(A_I, 1)
         np.fill_diagonal(A_I[:,1:], 1)
 
-        return X, Ex, A_D, A_I
-
-
-
-    ### Update ###
-    def explicit(self, Ex, Hz, dy, dt, eps):
-        Ex = Ex + dt/(eps*dy) * (Hz[:, 1:] - Hz[:, :-1])
-
-    # ! It can be that the matrix M1 isn't constructed correctly, since the original
-    # ! matrix in the paper is undertermined, artificial zeros was added here. In paper
-    # ! interface condition was applied
-    def implicit(self, n, X, Ex, dx, dy, dt, Nx, Ny, eps, mu, A_D, A_I, source):
-        Y = Ex[:-1, 1:] + Ex[1:, 1:] - Ex[:-1, :-1] - Ex[1:, :-1]
-
         # We will create a bigger matrix which we need to inverse
         M1_top = np.hstack((1/dx*A_D, 1/dt*A_I))
         M1_bot = np.hstack((eps/dt*A_I, -1/(mu*dx)*A_D))
         M1 = np.vstack((M1_top, M1_bot))
+        M1_inv = np.linalg.inv(M1)
 
         M2_top = np.hstack((1/dx*A_D, 1/dt*A_I))
         M2_bot = np.hstack((eps/dt*A_I, -1/(mu*dx)*A_D))
         M2 = np.vstack((M2_top, M2_bot))
 
+        return X, Ex, M1_inv, M2
+
+
+
+    ### Update ###
+    def explicit(self, Ex, Hz, dy, dt, eps):
+        Ex[:, 1:-1] = Ex[:, 1:-1] + dt/(eps*dy) * (Hz[:, 1:] - Hz[:, :-1])
+        return Ex
+
+    # ! It can be that the matrix M1 isn't constructed correctly, since the original
+    # ! matrix in the paper is undertermined, artificial zeros was added here. In paper
+    # ! interface condition was applied
+    def implicit(self, n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source):
+        Y = Ex[:-1, 1:] + Ex[1:, 1:] - Ex[:-1, :-1] - Ex[1:, :-1]
+
         S = np.zeros((2*Nx+2, Ny))
         S[xs, ys] = source.J(n*dt)
 
-        M1_inv = np.linalg.inv(M1)
         X = M1_inv @ M2 @ X + M1_inv @ np.vstack((Y, np.zeros((Nx+2, Ny))))/dy - M1_inv @ S
 
         return X
         
     
-    def calc_field(self, X, Ex):
-        pass
+    def calc_field(self, dx, dy, dt, Nx, Ny, Nt, eps, mu, source):
+        X, Ex, M1_inv, M2 = self.initialize(Nx, Ny, eps, mu)
+        data_time = []
+        data = []
+
+        for n in range(1, Nt):
+            X = self.implicit(n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source)
+            Ex = self.explicit(Ex, X[Nx+1:,:], dy, dt, eps,)
+            print(X[Nx+1:,:])
+            data_time.append(dt*n)
+            data.append(Ex)
+        
+        return data_time, data
 
 
-eps = 8.854 * 10**(-12)
-mu = 4*np.pi * 10**(-7)
+    def animate_field(self, t, data, source):
+        fig, ax = plt.subplots()
+
+        ax.set_xlabel("x-axis [m]")
+        ax.set_ylabel("y-axis [m]")
+        ax.set_xlim(0, Nx*dx)
+        ax.set_ylim(0, Ny*dy)
+
+        label = "P-field"
+        
+        ax.plot(source.x, source.y) # plot the source
+
+        cax = ax.imshow(data[0])
+        ax.set_title("T = 0")
+
+        def animate_frame(i):
+            cax.set_array(data[i])
+            ax.set_title("T = " + "{:.12f}".format(t[i]*1000) + "ms")
+            return cax
+
+        global anim
+        
+        anim = animation.FuncAnimation(fig, animate_frame, frames = (len(data)))
+        plt.show()
+
+
+
+##########################################################
+
+        
+
+
+eps0 = 8.854 * 10**(-12)
+mu0 = 4*np.pi * 10**(-7)
 
 dx = 0.1 # m
 dy = 0.1 # m
@@ -91,6 +135,7 @@ dt = Sy*dy/c
 
 Nx = 10
 Ny = 10
+Nt = 10
 
 xs = 3
 ys = 3
@@ -99,10 +144,5 @@ ys = 3
 source = Source(3, 3, 10, 5e-9, 1e-9)
 
 test = UCHIE()
-X, Ex, A_D, A_I = test.initialize(Nx, Ny)
-print(test.implicit(1, X, Ex, dx, dy, dt, Nx, Ny, eps, mu, A_D, A_I, source))
-
-print('next step')
-print(test.implicit(2, X, Ex, dx, dy, dt, Nx, Ny, eps, mu, A_D, A_I, source))
-print('next step')
-print(test.implicit(3, X, Ex, dx, dy, dt, Nx, Ny, eps, mu, A_D, A_I, source))
+data_time, data = test.calc_field(dx, dy, dt, Nx, Ny, Nt, eps0, mu0, source)
+test.animate_field(data_time, data, source)
