@@ -3,6 +3,7 @@ import matplotlib.pyplot as plt
 import copy
 import matplotlib.animation as animation 
 import scipy.constants as ct
+from matplotlib.animation import FuncAnimation
 
 #For the QM part, we require a simple 1D FDTD scheme
 
@@ -13,9 +14,10 @@ import scipy.constants as ct
 
 ### Electric field ###
 class ElectricField:
-    def __init__(self, field_type, amplitude=1.0):
+    def __init__(self, field_type, dt, amplitude=1.0):
         self.field_type = field_type
         self.amplitude = amplitude
+        self.dt = dt
 
     def generate(self, t, **kwargs):
         if self.field_type == 'gaussian':
@@ -30,9 +32,10 @@ class ElectricField:
     def _gaussian(self, t, t0=0, sigma=1):
         return self.amplitude * np.exp(-0.5 * ((t - t0) / sigma) ** 2)
 
-    def _sinusoidal(self, t, frequency=1):
+    def _sinusoidal(self, t, omega=1):
+        t0= 5*self.dt
         #add damping function
-        return self.amplitude * np.sin(omega * t)
+        return self.amplitude * np.sin(omega * t)*2/np.pi* np.arctan(t/t0)
 
 
 
@@ -57,93 +60,108 @@ class QM:
         pass
     def initialize(self, dy, Ny,m,omega, hbar,alpha):
         #coherent state at y=0 for electron
-        #PsiRe = np.zeros(Ny)
         
         r = np.linspace(-Ny/2*dy, Ny/2*dy,Ny)
-        print(r)
         PsiRe = (m*omega/(np.pi*hbar))**(1/4)*np.exp(-m*omega/(2*hbar)*(r-alpha*np.sqrt(2*hbar/(m*omega))*np.ones(Ny))**2)
-        # plt.plot(r,PsiRe)
-        # plt.show()
-        #print(PsiRe)
         PsiIm = np.zeros(Ny)
         return PsiRe, PsiIm, r
 
-    def second_order(self,psi,dy):
-        psi= (np.roll(psi,1) -2*psi + np.roll(psi,-1))/dy**2
+    def diff(self,psi,dy,order):
+        if order == 'second':
+            psi= (np.roll(psi,1) -2*psi + np.roll(psi,-1))/dy**2
+            psi[0] = 0
+            psi[-1] = 0
+            return psi
+        elif order == 'fourth':
+            psi= (-np.roll(psi,2) + 16*np.roll(psi,1) -30*psi + 16*np.roll(psi,-1)-np.roll(psi,-2))/(12*dy**2)
+        else:
+            raise ValueError(f"Order schould be 'second' or 'fourth'")
         psi[0] = 0
         psi[-1] = 0
         return psi
 
     ### Update ###
-    def update(self, PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n):
-        E = efield.generate(n*dt)*np.ones(Ny)
-        #PsiRe = PsiRe -hbar*dt/(2*m)*self.second_order(PsiIm,dy) - dt/hbar*(q*r*E-potential.V())*PsiIm
-        PsiRe = PsiRe -hbar*dt/(2*m)*self.second_order(PsiIm,dy) - dt/hbar*(-potential.V())*PsiIm
+    def update(self, PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N):
+        E = efield.generate(n*dt, omega=omega)*np.ones(Ny)
+        PsiRe = PsiRe -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(q*r*E-potential.V())*PsiIm
+        #PsiRe = PsiRe -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(-potential.V())*PsiIm
+       
         PsiRe[0] = 0
         PsiRe[-1] = 0
-        E = efield.generate(n+1/2*dt)*np.ones(Ny)
-        #PsiIm = PsiIm +hbar*dt/(2*m)*self.second_order(PsiRe,dy) + dt/hbar*(q*r*E-potential.V())*PsiRe
-        PsiIm = PsiIm +hbar*dt/(2*m)*self.second_order(PsiRe,dy) + dt/hbar*(-potential.V())*PsiRe
+        E = efield.generate(n+1/2*dt,omega=omega)*np.ones(Ny)
+        PsiImo = PsiIm
+        PsiIm = PsiImo +hbar*dt/(2*m)*self.diff(PsiRe,dy,order) + dt/hbar*(q*r*E-potential.V())*PsiRe
+        #PsiIm = PsiIm +hbar*dt/(2*m)*self.diff(PsiRe,dy, order) + dt/hbar*(-potential.V())*PsiRe
+        
         PsiIm[0] = 0
         PsiIm[-1] = 0
-        #Ex[:, 1:-1] = Ex[:, 1:-1] + dt/(eps*dy) * (Hz[:, 1:] - Hz[:, :-1])
-        return PsiRe, PsiIm
+        #We need the PsiIm at half integer time steps -> interpol
+        PsiImhalf = (PsiImo + PsiIm)/2
+        J = N*q*hbar/(m*dy)*(PsiRe*np.roll(PsiImhalf,-1) - np.roll(PsiRe,-1)*PsiImhalf)
+        J[0]=0
+        J[-1]= 0
+        
+        return PsiRe, PsiIm, J
 
     
         
     
-    def calc_wave(self, dy, dt, Ny, Nt,  hbar, m ,q ,potential, efield,alpha):
+    def calc_wave(self, dy, dt, Ny, Nt,  hbar, m ,q ,potential, efield,alpha,order,N):
         PsiRe,PsiIm ,r = self.initialize(dy, Ny,m,omega, hbar,alpha)
         data_time = []
         dataRe = []
         dataIm = []
         dataprob = []
+        datacurr = []
 
         for n in range(1, Nt):
-            PsiRe, PsiIm = self.update(PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n)
+            PsiRe, PsiIm , J = self.update(PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N)
             probability = PsiRe**2 + PsiIm**2
             data_time.append(dt*n)
             dataRe.append(PsiRe)
             dataIm.append(PsiIm)
             dataprob.append(probability)
+            datacurr.append(J)
+            #J in input for EM part
         
         return data_time, dataRe, dataIm, dataprob
+    
+
     
     def postprocess():
         #retrieve the quantum current from the wavefunction
         pass
 
-    # # TODO animate_field function doesn't work at all, I don't see the fields
-    # def animate_field(self, t, data, source):
-    #     fig, ax = plt.subplots()
 
-    #     ax.set_xlabel("x-axis [m]")
-    #     ax.set_ylabel("y-axis [m]")
-    #     ax.set_xlim(0, Nx*dx)
-    #     ax.set_ylim(0, Ny*dy)
+    def animate(self,dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N):
+        res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+        prob = res[3]
+        probsel = prob[::100]
+        fig, ax = plt.subplots()
 
-    #     label = "P-field"
-        
-    #     ax.plot(source.x, source.y) # plot the source
+        # Create an empty plot object
+        line, = ax.plot([], [])
 
-    #     cax = ax.imshow(data[0])
-    #     ax.set_title("T = 0")
+        def initanim():
+            ax.set_xlim(0, len(probsel[0]))  # Adjust the x-axis limits if needed
+            ax.set_ylim(0, np.max(probsel))  # Adjust the y-axis limits if needed
+            return line,
 
-    #     def animate_frame(i):
-    #         cax.set_array(data[i])
-    #         ax.set_title("T = " + "{:.12f}".format(t[i]*1000) + "ms")
-    #         return cax
+        # Define the update function
+        def updateanim(frame):
+            line.set_data(np.arange(len(probsel[frame])), probsel[frame])
+            return line,
 
-    #     global anim
-        
-    #     anim = animation.FuncAnimation(fig, animate_frame, frames = (len(data)))
-    #     plt.show()
+
+      
+        anim = FuncAnimation(fig, updateanim, frames=len(probsel), init_func=initanim, interval = 30)
+
+        # Show the animation
+        plt.show()
 
 ##########################################################
 
         
-
-
 eps0 = ct.epsilon_0
 mu0 = ct.mu_0
 hbar = ct.hbar #J⋅s
@@ -159,24 +177,28 @@ dt = 10*dy/c
 
 
 Ny = 400
-Nt =10000
+Nt =50000
+N = 10000 #particles/m2
 
 
-
-omega = 50e12 #[ras/s]
+omega = 50e12 #[rad/s]
 alpha = 4
 potential = Potential(m,omega, Ny, dy)
 potential.V()
 
-Efield = ElectricField('gaussian',amplitude = 1e10)
-Efield.generate(1, t0 = -5*dt, sigma = 1)
+#Efield = ElectricField('gaussian',amplitude = 10000000)
+Efield = ElectricField('sinusoidal',dt, amplitude = 1e7)
+Efield.generate(1, omega= omega )
 
+order = 'second'
 
 qm = QM()
-res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha)
-prob = res[3]
-plt.plot(prob[8000])
-plt.show()
-#test = UCHIE()
-#data_time, data = test.calc_field(dx, dy, dt, Nx, Ny, Nt, eps0, mu0, source)
-#test.animate_field(data_time, data, source)
+res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha, order,N)
+# prob = res[3]
+# probsel = prob[::100]
+
+qm.animate( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+# plt.imshow(probsel)
+# plt.colorbar()
+# #plt.plot(prob[8000])
+# plt.show()
