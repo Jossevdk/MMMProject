@@ -2,7 +2,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 import matplotlib.animation as animation 
-
+import copy
 
 
 ### Source ###
@@ -85,7 +85,8 @@ class UCHIE:
             X = self.implicit(n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source)
             Ex = self.explicit(Ex, X[Nx+1:,:], dy, dt, eps)
             data_time.append(dt*n)
-            data.append(Ex)
+            data.append(copy.deepcopy((Ex)))
+            
         
         return data_time, data
 
@@ -100,7 +101,7 @@ class UCHIE:
 
         label = "Field"
         
-        ax.plot(source.x, source.y, color="purple", marker= "o", label="Source") # plot the source
+        ax.plot(source.x/(Nx*dx), source.y/(Ny*dy), color="purple", marker= "o", label="Source") # plot the source
 
         cax = ax.imshow(data[0])
         ax.set_title("T = 0")
@@ -128,18 +129,18 @@ mu0 = 4*np.pi * 10**(-7)
 dx = 0.1 # m
 dy = 0.1 # m
 c = 299792458 # m/s
-Sy = 0.5 # !Courant number, for stability this should be smaller than 1
+Sy = 0.1 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c
 
 Ny = 100
 Nx = 100
-Nt = 100
+Nt = 1000
 
-xs = 5
-ys = 5
+xs = 50
+ys = 50
 
 
-source = Source(5, 5, 10, 5e-9, 1e-9)
+source = Source(xs, ys, 10, 5e-9, 1e-9)
 
 test = UCHIE()
 data_time, data = test.calc_field(dx, dy, dt, Nx, Ny, Nt, eps0, mu0, source)
