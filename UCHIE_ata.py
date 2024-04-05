@@ -32,10 +32,8 @@ class UCHIE:
     
 
     def initialize(self, Nx, Ny, eps, mu):
-        # Ey = np.zeros(Nx+1, Ny)
-        # Hz = Ey
 
-        X = np.zeros((2*Nx+2, Ny))
+        X = np.zeros((2*Nx+2, Ny)) # the first Nx+1 rows are the Ey fields, and the others the Hz fields
         Ex = np.zeros((Nx+1, Ny+1))
 
         A_D = np.diag(-1 * np.ones(Nx+1), 0) + np.diag(np.ones(Nx), 1)
@@ -46,11 +44,11 @@ class UCHIE:
 
         # We will create a bigger matrix which we need to inverse
         M1_top = np.hstack((1/dx*A_D, 1/dt*A_I))
-        M1_bot = np.hstack((eps/dt*A_I, -1/(mu*dx)*A_D))
+        M1_bot = np.hstack((eps/dt*A_I, 1/(mu*dx)*A_D))
         M1 = np.vstack((M1_top, M1_bot))
         M1_inv = np.linalg.inv(M1)
 
-        M2_top = np.hstack((1/dx*A_D, 1/dt*A_I))
+        M2_top = np.hstack((-1/dx*A_D, 1/dt*A_I))
         M2_bot = np.hstack((eps/dt*A_I, -1/(mu*dx)*A_D))
         M2 = np.vstack((M2_top, M2_bot))
 
@@ -60,20 +58,21 @@ class UCHIE:
 
     ### Update ###
     def explicit(self, Ex, Hz, dy, dt, eps):
-        Ex[:, 1:-1] = Ex[:, 1:-1] + dt/(eps*dy) * (Hz[:, 1:] - Hz[:, :-1])
+        Ex[1:-1, 1:-1] = Ex[1:-1, 1:-1] + dt/(eps*dy) * (Hz[1:-1, 1:] - Hz[1:-1, :-1])
         return Ex
 
     # ! It can be that the matrix M1 isn't constructed correctly, since the original
     # ! matrix in the paper is undertermined, artificial zeros was added here. In paper
-    # ! interface condition was applied
+    # ! interface condition was applied, here PEC is applied for the moment
+    # TODO check opnieuw de randvoorwaarden of ze correct zijn, velden moeten nul zijn aan PEC
+    # TODO dus misschien matrices Ad en Ai verkleinen
     def implicit(self, n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source):
         Y = Ex[:-1, 1:] + Ex[1:, 1:] - Ex[:-1, :-1] - Ex[1:, :-1]
 
         S = np.zeros((2*Nx+2, Ny))
-        S[xs, ys] = source.J(n*dt)
+        S[xs, ys] = source.J(n*dt)*dt
 
-        X = M1_inv @ M2 @ X + M1_inv @ np.vstack((Y, np.zeros((Nx+2, Ny))))/dy - M1_inv @ S
-
+        X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy - M1_inv@S
         return X
         
     
@@ -82,16 +81,16 @@ class UCHIE:
         data_time = []
         data = []
 
-        for n in range(1, Nt):
+        for n in range(0, Nt):
             X = self.implicit(n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source)
-            Ex = self.explicit(Ex, X[Nx+1:,:], dy, dt, eps,)
+            Ex = self.explicit(Ex, X[Nx+1:,:], dy, dt, eps)
             data_time.append(dt*n)
             data.append(Ex)
         
         return data_time, data
 
-    # TODO animate_field function doesn't work at all, I don't see the fields
-    def animate_field(self, t, data, source):
+    # TODO animate_field function doesn't work, I don't see the field propagating
+    def animate_field(self, t, data, source, dx, dy, Nx, Ny):
         fig, ax = plt.subplots()
 
         ax.set_xlabel("x-axis [m]")
@@ -99,9 +98,9 @@ class UCHIE:
         ax.set_xlim(0, Nx*dx)
         ax.set_ylim(0, Ny*dy)
 
-        label = "P-field"
+        label = "Field"
         
-        ax.plot(source.x, source.y) # plot the source
+        ax.plot(source.x, source.y, color="purple", marker= "o", label="Source") # plot the source
 
         cax = ax.imshow(data[0])
         ax.set_title("T = 0")
@@ -113,7 +112,7 @@ class UCHIE:
 
         global anim
         
-        anim = animation.FuncAnimation(fig, animate_frame, frames = (len(data)))
+        anim = animation.FuncAnimation(fig, animate_frame, frames = (len(data)), interval=20)
         plt.show()
 
 
@@ -129,19 +128,19 @@ mu0 = 4*np.pi * 10**(-7)
 dx = 0.1 # m
 dy = 0.1 # m
 c = 299792458 # m/s
-Sy = 1 # !Courant number, for stability this should be smaller than 1
+Sy = 0.5 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c
 
-Nx = 10
-Ny = 10
-Nt = 10
+Ny = 100
+Nx = 100
+Nt = 100
 
-xs = 3
-ys = 3
+xs = 5
+ys = 5
 
 
-source = Source(3, 3, 10, 5e-9, 1e-9)
+source = Source(5, 5, 10, 5e-9, 1e-9)
 
 test = UCHIE()
 data_time, data = test.calc_field(dx, dy, dt, Nx, Ny, Nt, eps0, mu0, source)
-test.animate_field(data_time, data, source)
+test.animate_field(data_time, data, source, dx, dy, Nx, Nx)
