@@ -30,6 +30,7 @@ class ElectricField:
             raise ValueError(f"Unknown field type: {self.field_type}")
 
     def _gaussian(self, t, t0=0, sigma=1):
+        t0 = 10000*self.dt
         return self.amplitude * np.exp(-0.5 * ((t - t0) / sigma) ** 2)
 
     def _sinusoidal(self, t, omega=1):
