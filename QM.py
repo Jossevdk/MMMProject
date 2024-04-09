@@ -140,7 +140,7 @@ class QM:
         self.result = data_time, dataRe, dataIm, dataprob, datacurr
         return data_time, dataRe, dataIm, dataprob, datacurr
     
-    def expvalues(self, dy,  type):
+    def expvalues(self,dt, dy,  type):
         if self.result == None:
             data_time, dataRe, dataIm, dataprob, datacurr = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
         else: data_time, dataRe, dataIm, dataprob, datacurr = self.result
@@ -169,8 +169,8 @@ class QM:
             exp = []
             for i in range(len(data_time)-1):
                 #rho is known at n, r , J at n+1/2, r+1/2
-                datacurr[i] = 1/4*(datacurr[i]+np.roll(datacurr[i],-1)+datacurr[i+1]+np.roll(datacurr[i+1],-1))
-                val = q*(dataprob[i+1]-dataprob[i])/2+1/2*(np.roll(datacurr[i],-1)-datacurr[i])
+                #datacurr[i] = 1/4*(datacurr[i]+np.roll(datacurr[i],-1)+datacurr[i+1]+np.roll(datacurr[i+1],-1))
+                val = q*(dataprob[i+1]-dataprob[i])/dt+1/dy*(np.roll(datacurr[i],-1)-datacurr[i])
                 exp.append(np.sum(val))
 
         return exp
@@ -255,7 +255,7 @@ qm.animate( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
 # plt.show()
 types = ['position', 'momentum', 'energy', 'continuity']
 for type in types: 
-    exp = qm.expvalues(dy, type)
+    exp = qm.expvalues(dt, dy, type)
     expsel = exp[::100]
     print(expsel)
     plt.plot(expsel)
