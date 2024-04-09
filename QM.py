@@ -152,7 +152,7 @@ class QM:
         if type == 'momentum':
             exp = []
             for i in range(len(data_time)-1):
-                val = (1/2*(dataRe[i+1]+ dataRe[i]) - 1j*dataIm[i])*((-1j*hbar/(2*dy)*(np.roll(dataRe[i+1],-1) +np.roll(dataRe[i],-1)-dataRe[i+1]- dataRe[i]))+hbar/dy*(np.roll(dataIm[i],-1)-dataIm[i]))
+                val = 1/2*((1/2*(np.roll(dataRe[i+1], -1) + np.roll(dataRe[i],-1)) - 1j*np.roll(dataIm[i],-1)) + (1/2*(dataRe[i+1]+ dataRe[i]) - 1j*dataIm[i]))*((-1j*hbar/(2*dy)*(np.roll(dataRe[i+1],-1) +np.roll(dataRe[i],-1)-dataRe[i+1]- dataRe[i]))+hbar/dy*(np.roll(dataIm[i],-1)-dataIm[i]))
                 exp.append(np.sum(val))
 
         if type == 'energy':
@@ -257,7 +257,7 @@ types = ['position', 'momentum', 'energy', 'continuity']
 for type in types: 
     exp = qm.expvalues(dy, type)
     expsel = exp[::100]
-#print(expsel)
+    print(expsel)
     plt.plot(expsel)
     plt.title(type)
     plt.show()
