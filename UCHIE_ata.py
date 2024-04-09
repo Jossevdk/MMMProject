@@ -39,6 +39,7 @@ class UCHIE:
         A_D = np.diag(-1 * np.ones(Nx+1), 0) + np.diag(np.ones(Nx), 1)
 
         A_I = np.zeros((Nx+1, Nx+1))
+
         np.fill_diagonal(A_I, 1)
         np.fill_diagonal(A_I[:,1:], 1)
 
@@ -73,6 +74,13 @@ class UCHIE:
         S[xs, ys] = source.J(n*dt)*dt
 
         X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy - M1_inv@S
+
+        # These are the boundary conditions, see paper (27)
+        X[0,:] = 0
+        X[Nx+1,:] = 0
+        X[Nx+2, :] = 0
+        X[-1, :] = 0
+
         return X
         
     
@@ -101,7 +109,7 @@ class UCHIE:
 
         label = "Field"
         
-        ax.plot(source.x/(Nx*dx), source.y/(Ny*dy), color="purple", marker= "o", label="Source") # plot the source
+        ax.plot(source.x, source.y, color="purple", marker= "o", label="Source") # plot the source
 
         cax = ax.imshow(data[0])
         ax.set_title("T = 0")
@@ -127,7 +135,7 @@ eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
 
 dx = 0.1 # m
-dy = 0.1 # m
+dy = 0.1 # ms
 c = 299792458 # m/s
 Sy = 0.1 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c
@@ -136,8 +144,8 @@ Ny = 100
 Nx = 100
 Nt = 1000
 
-xs = 50
-ys = 50
+xs = 5
+ys = 5
 
 
 source = Source(xs, ys, 10, 5e-9, 1e-9)
