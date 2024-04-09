@@ -56,8 +56,11 @@ class Potential:
 
 #### QM ####
 class QM:
-    def __init__(self):
+    def __init__(self,order):#,Ny,dy, dt, hbar, m, q, r, potential, efield, n,order,N):
         self.result = None
+        self.order = order
+        self.potential = potential
+        #self.Ny = Ny, self.dy = dy, self.dt = dt, self.hbar = hbar = self.m = m, self.q = q,
     def initialize(self, dy, Ny,m,omega, hbar,alpha):
         #coherent state at y=0 for electron
         
@@ -74,22 +77,27 @@ class QM:
             return psi
         elif order == 'fourth':
             psi= (-np.roll(psi,2) + 16*np.roll(psi,1) -30*psi + 16*np.roll(psi,-1)-np.roll(psi,-2))/(12*dy**2)
+            psi[0] = 0
+            psi[1]= 0
+            psi[-1] = 0
+            psi[-2]=0
         else:
             raise ValueError(f"Order schould be 'second' or 'fourth'")
-        psi[0] = 0
-        psi[-1] = 0
+        
         return psi
 
     ### Update ###
     def update(self, PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N):
-        E = efield.generate(n*dt, omega=omega)*np.ones(Ny)
+        E = efield.generate((n)*dt, omega=omega)*np.ones(Ny)
+        #E= 0
         PsiReo = PsiRe
         PsiRe = PsiReo -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(q*r*E-potential.V())*PsiIm
         #PsiRe = PsiRe -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(-potential.V())*PsiIm
        
         PsiRe[0] = 0
         PsiRe[-1] = 0
-        E = efield.generate(n+1/2*dt,omega=omega)*np.ones(Ny)
+        E = efield.generate((n+1/2)*dt,omega=omega)*np.ones(Ny)
+        #E= 0
         PsiImo = PsiIm
         PsiIm = PsiImo +hbar*dt/(2*m)*self.diff(PsiRe,dy,order) + dt/hbar*(q*r*E-potential.V())*PsiRe
         #PsiIm = PsiIm +hbar*dt/(2*m)*self.diff(PsiRe,dy, order) + dt/hbar*(-potential.V())*PsiRe
@@ -102,7 +110,7 @@ class QM:
         J[0]=0
         J[-1]= 0
 
-        prob = (1/2*(PsiReo +PsiRe))**2  + PsiIm**2
+        prob = PsiRe**2  + PsiImhalf**2
         
         return PsiRe, PsiIm, J, prob
     
@@ -129,13 +137,13 @@ class QM:
             dataprob.append(prob)
             datacurr.append(J)
             #J in input for EM part
-        self.result = data_time, dataRe, dataIm, dataprob
-        return data_time, dataRe, dataIm, dataprob
+        self.result = data_time, dataRe, dataIm, dataprob, datacurr
+        return data_time, dataRe, dataIm, dataprob, datacurr
     
     def expvalues(self, dy,  type):
         if self.result == None:
-            data_time, dataRe, dataIm, dataprob = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
-        else: data_time, dataRe, dataIm, dataprob = self.result
+            data_time, dataRe, dataIm, dataprob, datacurr = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+        else: data_time, dataRe, dataIm, dataprob, datacurr = self.result
         if type == 'position':
             exp = []
             for el in dataprob:
@@ -145,6 +153,24 @@ class QM:
             exp = []
             for i in range(len(data_time)-1):
                 val = (1/2*(dataRe[i+1]+ dataRe[i]) - 1j*dataIm[i])*((-1j*hbar/(2*dy)*(np.roll(dataRe[i+1],-1) +np.roll(dataRe[i],-1)-dataRe[i+1]- dataRe[i]))+hbar/dy*(np.roll(dataIm[i],-1)-dataIm[i]))
+                exp.append(np.sum(val))
+
+        if type == 'energy':
+            exp= []
+            for i in range(1,len(data_time)):
+                #fix psire because not at right moment
+                dataIm[i] = 1/2*(dataIm[i-1] + dataIm[i])
+                dataIm[i][0]= 0
+                dataIm[i][-1] = 0
+                val = (dataRe[i]-1j*dataIm[i])*(-hbar**2/(2*m)*self.diff(dataRe[i]+1j*dataIm[i], dy, order)+self.potential.V()*(dataRe[i]+1j*dataIm[i]))
+                exp.append(np.sum(val))
+
+        if type == 'continuity':
+            exp = []
+            for i in range(len(data_time)-1):
+                #rho is known at n, r , J at n+1/2, r+1/2
+                datacurr[i] = 1/4*(datacurr[i]+np.roll(datacurr[i],-1)+datacurr[i+1]+np.roll(datacurr[i+1],-1))
+                val = q*(dataprob[i+1]-dataprob[i])/2+1/2*(np.roll(datacurr[i],-1)-datacurr[i])
                 exp.append(np.sum(val))
 
         return exp
@@ -207,7 +233,7 @@ N = 10000 #particles/m2
 
 
 omega = 50e12 #[rad/s]
-alpha = 7
+alpha = 4
 potential = Potential(m,omega, Ny, dy)
 potential.V()
 
@@ -217,7 +243,7 @@ Efield.generate(1, omega= omega )
 
 order = 'fourth'
 
-qm = QM()
+qm = QM(order)
 res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha, order,N)
 # prob = res[3]
 # probsel = prob[::100]
@@ -227,9 +253,11 @@ qm.animate( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
 # plt.colorbar()
 # #plt.plot(prob[8000])
 # plt.show()
-type = "momentum"
-exp = qm.expvalues(dy, type)
-expsel = exp[::100]
+types = ['position', 'momentum', 'energy', 'continuity']
+for type in types: 
+    exp = qm.expvalues(dy, type)
+    expsel = exp[::100]
 #print(expsel)
-plt.plot(expsel)
-plt.show()
+    plt.plot(expsel)
+    plt.title(type)
+    plt.show()
