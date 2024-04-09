@@ -57,14 +57,14 @@ class Potential:
 #### QM ####
 class QM:
     def __init__(self):
-        pass
+        self.result = None
     def initialize(self, dy, Ny,m,omega, hbar,alpha):
         #coherent state at y=0 for electron
         
-        r = np.linspace(-Ny/2*dy, Ny/2*dy,Ny)
-        PsiRe = (m*omega/(np.pi*hbar))**(1/4)*np.exp(-m*omega/(2*hbar)*(r-alpha*np.sqrt(2*hbar/(m*omega))*np.ones(Ny))**2)
+        self.r = np.linspace(-Ny/2*dy, Ny/2*dy,Ny)
+        PsiRe = (m*omega/(np.pi*hbar))**(1/4)*np.exp(-m*omega/(2*hbar)*(self.r-alpha*np.sqrt(2*hbar/(m*omega))*np.ones(Ny))**2)
         PsiIm = np.zeros(Ny)
-        return PsiRe, PsiIm, r
+        return PsiRe, PsiIm, self.r
 
     def diff(self,psi,dy,order):
         if order == 'second':
@@ -83,7 +83,8 @@ class QM:
     ### Update ###
     def update(self, PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N):
         E = efield.generate(n*dt, omega=omega)*np.ones(Ny)
-        PsiRe = PsiRe -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(q*r*E-potential.V())*PsiIm
+        PsiReo = PsiRe
+        PsiRe = PsiReo -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(q*r*E-potential.V())*PsiIm
         #PsiRe = PsiRe -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(-potential.V())*PsiIm
        
         PsiRe[0] = 0
@@ -100,9 +101,10 @@ class QM:
         J = N*q*hbar/(m*dy)*(PsiRe*np.roll(PsiImhalf,-1) - np.roll(PsiRe,-1)*PsiImhalf)
         J[0]=0
         J[-1]= 0
-        
-        return PsiRe, PsiIm, J
 
+        prob = (1/2*(PsiReo +PsiRe))**2  + PsiIm**2
+        
+        return PsiRe, PsiIm, J, prob
     
         
     
@@ -115,26 +117,49 @@ class QM:
         datacurr = []
 
         for n in range(1, Nt):
-            PsiRe, PsiIm , J = self.update(PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N)
-            probability = PsiRe**2 + PsiIm**2
+            PsiRe, PsiIm , J ,prob = self.update(PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N)
+            #probability = PsiRe**2 + PsiIm**2 
+            # PsiReint = 1/2*(PsiRe + np.roll(PsiRe, -1))
+            # PsiReint[0]=0
+            # PsiReint[-1] = 0
+            # probability = PsiReint**2 + PsiIm**2
             data_time.append(dt*n)
             dataRe.append(PsiRe)
             dataIm.append(PsiIm)
-            dataprob.append(probability)
+            dataprob.append(prob)
             datacurr.append(J)
             #J in input for EM part
-        
+        self.result = data_time, dataRe, dataIm, dataprob
         return data_time, dataRe, dataIm, dataprob
     
+    def expvalues(self, dy,  type):
+        if self.result == None:
+            data_time, dataRe, dataIm, dataprob = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+        else: data_time, dataRe, dataIm, dataprob = self.result
+        if type == 'position':
+            exp = []
+            for el in dataprob:
+                exp.append(np.sum(el*self.r*dy))
+            
+        if type == 'momentum':
+            exp = []
+            for i in range(len(data_time)-1):
+                val = (1/2*(dataRe[i+1]+ dataRe[i]) - 1j*dataIm[i])*((-1j*hbar/(2*dy)*(np.roll(dataRe[i+1],-1) +np.roll(dataRe[i],-1)-dataRe[i+1]- dataRe[i]))+hbar/dy*(np.roll(dataIm[i],-1)-dataIm[i]))
+                exp.append(np.sum(val))
+
+        return exp
 
     
     def postprocess():
-        #retrieve the quantum current from the wavefunction
+        
         pass
 
 
     def animate(self,dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N):
-        res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+        if self.result == None:
+            res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+        else:
+            res = self.result
         prob = res[3]
         probsel = prob[::100]
         fig, ax = plt.subplots()
@@ -182,7 +207,7 @@ N = 10000 #particles/m2
 
 
 omega = 50e12 #[rad/s]
-alpha = 4
+alpha = 7
 potential = Potential(m,omega, Ny, dy)
 potential.V()
 
@@ -190,7 +215,7 @@ potential.V()
 Efield = ElectricField('sinusoidal',dt, amplitude = 1e7)
 Efield.generate(1, omega= omega )
 
-order = 'second'
+order = 'fourth'
 
 qm = QM()
 res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha, order,N)
@@ -202,3 +227,9 @@ qm.animate( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
 # plt.colorbar()
 # #plt.plot(prob[8000])
 # plt.show()
+type = "momentum"
+exp = qm.expvalues(dy, type)
+expsel = exp[::100]
+#print(expsel)
+plt.plot(expsel)
+plt.show()
