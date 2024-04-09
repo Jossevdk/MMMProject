@@ -148,7 +148,7 @@ xs = 5
 ys = 5
 
 
-source = Source(xs, ys, 10, 5e-9, 1e-9)
+source = Source(xs, ys, 1, 5e-9, 1e-9)
 
 test = UCHIE()
 data_time, data = test.calc_field(dx, dy, dt, Nx, Ny, Nt, eps0, mu0, source)
