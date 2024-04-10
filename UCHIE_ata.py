@@ -3,6 +3,8 @@ import matplotlib.pyplot as plt
 import copy
 import matplotlib.animation as animation 
 import copy
+import pandas as pd
+
 
 
 ### Source ###
@@ -33,53 +35,57 @@ class UCHIE:
 
     def initialize(self, Nx, Ny, eps, mu):
 
-        X = np.zeros((2*Nx+2, Ny)) # the first Nx+1 rows are the Ey fields, and the others the Hz fields
+        X = np.zeros((2*Nx+2, Ny)) # the first Nx+1 rows are the Ey fields, and the others the Bz fields
         Ex = np.zeros((Nx+1, Ny+1))
 
         A_D = np.diag(-1 * np.ones(Nx+1), 0) + np.diag(np.ones(Nx), 1)
+        A_D = A_D[:-1, :]
 
-        A_I = np.zeros((Nx+1, Nx+1))
-
+        A_I = np.zeros((Nx, Nx + 1))
         np.fill_diagonal(A_I, 1)
         np.fill_diagonal(A_I[:,1:], 1)
 
         # We will create a bigger matrix which we need to inverse
         M1_top = np.hstack((1/dx*A_D, 1/dt*A_I))
         M1_bot = np.hstack((eps/dt*A_I, 1/(mu*dx)*A_D))
-        M1 = np.vstack((M1_top, M1_bot))
+        first_row = np.zeros((1, 2*Nx+2))
+        first_row[0, Nx+1] = 1
+        last_row = np.zeros((1, 2*Nx+2))
+        last_row[0, -1] = 1
+        M1 = np.vstack((M1_top, first_row, M1_bot, last_row))
+        
+        # A = pd.DataFrame(M1)
+        # A.columns = ['']*A.shape[1]
+        # print(A.to_string(index=False))
+
         M1_inv = np.linalg.inv(M1)
 
         M2_top = np.hstack((-1/dx*A_D, 1/dt*A_I))
         M2_bot = np.hstack((eps/dt*A_I, -1/(mu*dx)*A_D))
-        M2 = np.vstack((M2_top, M2_bot))
+        first_row = np.zeros((1, 2*Nx+2))
+        first_row[0, Nx+1] = 0
+        last_row = np.zeros((1, 2*Nx+2))
+        last_row[0, -1] = 0
+        M2 = np.vstack((M2_top, first_row, last_row, M2_bot))
 
         return X, Ex, M1_inv, M2
 
 
 
     ### Update ###
-    def explicit(self, Ex, Hz, dy, dt, eps):
-        Ex[1:-1, 1:-1] = Ex[1:-1, 1:-1] + dt/(eps*dy) * (Hz[1:-1, 1:] - Hz[1:-1, :-1])
+    def explicit(self, Ex, Bz, dy, dt, eps, mu):
+        Ex[1:-1, 1:-1] = Ex[1:-1, 1:-1] + dt/(eps*dy*mu) * (Bz[1:-1, 1:] - Bz[1:-1, :-1])
         return Ex
 
-    # ! It can be that the matrix M1 isn't constructed correctly, since the original
-    # ! matrix in the paper is undertermined, artificial zeros was added here. In paper
-    # ! interface condition was applied, here PEC is applied for the moment
-    # TODO check opnieuw de randvoorwaarden of ze correct zijn, velden moeten nul zijn aan PEC
-    # TODO dus misschien matrices Ad en Ai verkleinen
+    # ! It can be that the matrix M1 isn't constructed correctly, since the original matrix in the paper is undertermined, artificial zeros was added here. In paper interface condition was applied, here PEC is applied for the moment
+    # TODO check opnieuw de randvoorwaarden of ze correct zijn, velden moeten nul zijn aan PEC, ODO dus misschien matrices Ad en Ai verkleinen
     def implicit(self, n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source):
         Y = Ex[:-1, 1:] + Ex[1:, 1:] - Ex[:-1, :-1] - Ex[1:, :-1]
 
         S = np.zeros((2*Nx+2, Ny))
-        S[xs, ys] = source.J(n*dt)*dt
+        S[int(source.x/dx), int(source.y/dy)] = source.J(n*dt)*dt
 
         X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy - M1_inv@S
-
-        # These are the boundary conditions, see paper (27)
-        X[0,:] = 0
-        X[Nx+1,:] = 0
-        X[Nx+2, :] = 0
-        X[-1, :] = 0
 
         return X
         
@@ -91,9 +97,9 @@ class UCHIE:
 
         for n in range(0, Nt):
             X = self.implicit(n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source)
-            Ex = self.explicit(Ex, X[Nx+1:,:], dy, dt, eps)
+            Ex = self.explicit(Ex, X[Nx+1:,:], dy, dt, eps, mu)
             data_time.append(dt*n)
-            data.append(copy.deepcopy((Ex)))
+            data.append(copy.deepcopy((X[Nx+1:,:].T)))
             
         
         return data_time, data
@@ -102,14 +108,14 @@ class UCHIE:
     def animate_field(self, t, data, source, dx, dy, Nx, Ny):
         fig, ax = plt.subplots()
 
-        ax.set_xlabel("x-axis [m]")
-        ax.set_ylabel("y-axis [m]")
-        ax.set_xlim(0, Nx*dx)
-        ax.set_ylim(0, Ny*dy)
+        ax.set_xlabel("x-axis [k]")
+        ax.set_ylabel("y-axis [l]")
+        # ax.set_xlim(0, Nx*dx)
+        # ax.set_ylim(0, Ny*dy)
 
         label = "Field"
         
-        ax.plot(source.x, source.y, color="purple", marker= "o", label="Source") # plot the source
+        # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
 
         cax = ax.imshow(data[0])
         ax.set_title("T = 0")
@@ -134,15 +140,15 @@ class UCHIE:
 eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
 
-dx = 0.1 # m
+dx = 0.05 # m
 dy = 0.1 # ms
 c = 299792458 # m/s
 Sy = 0.1 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c
 
+Nx = 200
 Ny = 100
-Nx = 100
-Nt = 1000
+Nt = 100
 
 xs = 5
 ys = 5
