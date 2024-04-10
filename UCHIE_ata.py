@@ -49,24 +49,18 @@ class UCHIE:
         M1_top = np.hstack((1/dx*A_D, 1/dt*A_I))
         M1_bot = np.hstack((eps/dt*A_I, 1/(mu*dx)*A_D))
         first_row = np.zeros((1, 2*Nx+2))
-        first_row[0, Nx+1] = 1
+        first_row[0, Nx] = 1
         last_row = np.zeros((1, 2*Nx+2))
         last_row[0, -1] = 1
         M1 = np.vstack((M1_top, first_row, M1_bot, last_row))
-        
-        # A = pd.DataFrame(M1)
-        # A.columns = ['']*A.shape[1]
-        # print(A.to_string(index=False))
-
         M1_inv = np.linalg.inv(M1)
 
         M2_top = np.hstack((-1/dx*A_D, 1/dt*A_I))
         M2_bot = np.hstack((eps/dt*A_I, -1/(mu*dx)*A_D))
         first_row = np.zeros((1, 2*Nx+2))
-        first_row[0, Nx+1] = 0
         last_row = np.zeros((1, 2*Nx+2))
-        last_row[0, -1] = 0
-        M2 = np.vstack((M2_top, first_row, last_row, M2_bot))
+        M2 = np.vstack((M2_top, first_row,  M2_bot, last_row))
+
 
         return X, Ex, M1_inv, M2
 
@@ -75,10 +69,11 @@ class UCHIE:
     ### Update ###
     def explicit(self, Ex, Bz, dy, dt, eps, mu):
         Ex[1:-1, 1:-1] = Ex[1:-1, 1:-1] + dt/(eps*dy*mu) * (Bz[1:-1, 1:] - Bz[1:-1, :-1])
+
+
         return Ex
 
-    # ! It can be that the matrix M1 isn't constructed correctly, since the original matrix in the paper is undertermined, artificial zeros was added here. In paper interface condition was applied, here PEC is applied for the moment
-    # TODO check opnieuw de randvoorwaarden of ze correct zijn, velden moeten nul zijn aan PEC, ODO dus misschien matrices Ad en Ai verkleinen
+
     def implicit(self, n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source):
         Y = Ex[:-1, 1:] + Ex[1:, 1:] - Ex[:-1, :-1] - Ex[1:, :-1]
 
@@ -99,7 +94,7 @@ class UCHIE:
             X = self.implicit(n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source)
             Ex = self.explicit(Ex, X[Nx+1:,:], dy, dt, eps, mu)
             data_time.append(dt*n)
-            data.append(copy.deepcopy((X[Nx+1:,:].T)))
+            data.append(copy.deepcopy((Ex.T)))
             
         
         return data_time, data
@@ -148,7 +143,18 @@ dt = Sy*dy/c
 
 Nx = 200
 Ny = 100
-Nt = 100
+Nt = 500
+
+# dx = 1 # m
+# dy = 2 # ms
+# c = 299792458 # m/s
+# Sy = 0.1 # !Courant number, for stability this should be smaller than 1
+# dt = Sy*dy/c
+
+# Nx = 10
+# Ny = 5
+# Nt = 100
+
 
 xs = 5
 ys = 5
