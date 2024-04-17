@@ -39,29 +39,30 @@ class UCHIE:
         Ex = np.zeros((Nx+1, Ny+1))
 
         A_D = np.diag(-1 * np.ones(Nx+1), 0) + np.diag(np.ones(Nx), 1)
-        A_D = A_D[:-1, :]
+        A_D[Nx, 0] = 1
 
-        A_I = np.zeros((Nx, Nx + 1))
-        np.fill_diagonal(A_I, 1)
-        np.fill_diagonal(A_I[:,1:], 1)
+        A_I = np.diag(1 * np.ones(Nx+1), 0) + np.diag(np.ones(Nx), 1)
+        A_I[Nx, 0] = 1
 
         # We will create a bigger matrix which we need to inverse
         M1_top = np.hstack((1/dx*A_D, 1/dt*A_I))
         M1_bot = np.hstack((eps/dt*A_I, 1/(mu*dx)*A_D))
-        first_row = np.zeros((1, 2*Nx+2))
-        first_row[0, Nx] = 1
-        last_row = np.zeros((1, 2*Nx+2))
-        last_row[0, -1] = 1
-        M1 = np.vstack((M1_top, first_row, M1_bot, last_row))
+        
+        M1 = np.vstack((M1_top, M1_bot))
+        # M1[0, :] = np.zeros(2*Nx+2)
+        # M1[0, 0] = 1
+        # M1[Nx + 1, :] = np.zeros( 2*Nx+2)
+        # M1[Nx + 1, Nx + 1] = 1
         M1_inv = np.linalg.inv(M1)
 
         M2_top = np.hstack((-1/dx*A_D, 1/dt*A_I))
         M2_bot = np.hstack((eps/dt*A_I, -1/(mu*dx)*A_D))
-        first_row = np.zeros((1, 2*Nx+2))
-        last_row = np.zeros((1, 2*Nx+2))
-        M2 = np.vstack((M2_top, first_row,  M2_bot, last_row))
+        
+        M2 = np.vstack((M2_top,  M2_bot))
 
-
+        # M2[0, :] = np.zeros(2*Nx+2)
+        
+        # M2[Nx + 1, :] = np.zeros( 2*Nx+2)
         return X, Ex, M1_inv, M2
 
 
@@ -78,9 +79,16 @@ class UCHIE:
         Y = Ex[:-1, 1:] + Ex[1:, 1:] - Ex[:-1, :-1] - Ex[1:, :-1]
 
         S = np.zeros((2*Nx+2, Ny))
-        S[int(source.x/dx), int(source.y/dy)] = source.J(n*dt)*dt
+        S[int(source.x/dx), int(source.y/dy)] = source.J(n*dt)
 
         X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy - M1_inv@S
+        X[0, :] = np.zeros(Ny)
+        X[Nx, :] = np.zeros(Ny)
+        X[Nx+1, :] = np.zeros(Ny)
+        X[2*Nx+1, :] = np.zeros(Ny)
+
+        X[:,0] = np.zeros(2*Nx+2)
+        X[:,Ny-1] = np.zeros(2*Nx+2)
 
         return X
         
@@ -156,8 +164,8 @@ Nt = 500
 # Nt = 100
 
 
-xs = 5
-ys = 5
+xs = 3
+ys = 3
 
 
 source = Source(xs, ys, 1, 5e-9, 1e-9)
