@@ -79,16 +79,10 @@ class UCHIE:
         Y = Ex[:-1, 1:] + Ex[1:, 1:] - Ex[:-1, :-1] - Ex[1:, :-1]
 
         S = np.zeros((2*Nx+2, Ny))
-        S[int(source.x/dx), int(source.y/dy)] = source.J(n*dt)
+        S[Nx + int(source.x/dx), int(source.y/dy)] = source.J(n*dt)*dt
 
-        X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy - M1_inv@S
-        X[0, :] = np.zeros(Ny)
-        X[Nx, :] = np.zeros(Ny)
-        X[Nx+1, :] = np.zeros(Ny)
-        X[2*Nx+1, :] = np.zeros(Ny)
-
-        X[:,0] = np.zeros(2*Nx+2)
-        X[:,Ny-1] = np.zeros(2*Nx+2)
+        X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy + M1_inv@S
+        
 
         return X
         
@@ -102,7 +96,7 @@ class UCHIE:
             X = self.implicit(n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source)
             Ex = self.explicit(Ex, X[Nx+1:,:], dy, dt, eps, mu)
             data_time.append(dt*n)
-            data.append(copy.deepcopy((Ex.T)))
+            data.append(copy.deepcopy((X[Nx+1:,:].T)))
             
         
         return data_time, data
@@ -143,8 +137,8 @@ class UCHIE:
 eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
 
-dx = 0.05 # m
-dy = 0.1 # ms
+dx = 0.005 # m
+dy = 0.01 # ms
 c = 299792458 # m/s
 Sy = 0.1 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c
@@ -164,12 +158,12 @@ Nt = 500
 # Nt = 100
 
 
-xs = 3
-ys = 3
+xs = 0.3
+ys = 0.3
 
 
-source = Source(xs, ys, 1, 5e-9, 1e-9)
+source = Source(xs, ys, 300, 5e-10, 9e-11)
 
 test = UCHIE()
 data_time, data = test.calc_field(dx, dy, dt, Nx, Ny, Nt, eps0, mu0, source)
-test.animate_field(data_time, data, source, dx, dy, Nx, Nx)
+test.animate_field(data_time, data, source, dx, dy, Nx, Ny)
