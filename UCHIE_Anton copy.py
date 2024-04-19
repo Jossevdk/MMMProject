@@ -86,7 +86,7 @@ class UCHIE:
         Y = Ex[:-1, 1:] + Ex[1:, 1:] - Ex[:-1, :-1] - Ex[1:, :-1]
 
         S = np.zeros((2*Nx+2, Ny))
-        S[ int(source.x/dx), int(source.y/dy)] = source.J(n*dt)
+        S[  int(source.x/dx), int(source.y/dy)] = source.J(n*dt)
     
         #X = M1_inv@M2@X + M1_inv@np.vstack((Y, S))/dy #+ M1_inv@S
         X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy +M1_inv@S
@@ -145,7 +145,7 @@ class UCHIE:
 eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
 
-dx = 0.01 # m
+dx = 0.008 # m
 dy = 0.01 # ms
 c = 299792458 # m/s
 Sy = 0.8 # !Courant number, for stability this should be smaller than 1
@@ -166,12 +166,12 @@ Nt = 500
 # Nt = 100
 
 
-xs = 0.8
-ys = 0.8
+xs = Nx*dx/2
+ys = Ny*dy/2
 
-tc = dt*Nt/3
+tc = dt*Nt/2
 print(tc)
-sigma = tc/3
+sigma = tc/6
 
 source = Source(xs, ys, 1, tc, sigma)
 
