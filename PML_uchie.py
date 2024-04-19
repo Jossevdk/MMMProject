@@ -5,7 +5,7 @@ import matplotlib.animation as animation
 import copy
 import pandas as pd
 
-
+c0 = 299792458
 eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
 
@@ -48,7 +48,7 @@ class UCHIE:
 
         self.dx = dx
         self.dy = dy
-        self.dt = dt
+        self.dt = c0*dt
         self.X = np.zeros((5*Nx-1, Ny)) # the first Nx+1 rows are the Ey fields, and the others the Bz fields
         A1 = np.zeros((Nx, Nx-1))
         np.fill_diagonal(A1, 1)
@@ -68,37 +68,40 @@ class UCHIE:
         np.fill_diagonal(D2[:,1:], 1/dx)
         I_E = np.eye(Nx - 1)
         I_H = np.eye(Nx + 1)
-        m = 4
+        m = 10
         pml_kxmax = pml_kmax
         pml_sigmax_max = (m+1)/(150*np.pi*dx)
+        
         pml_kx = np.array([1 + (pml_kxmax -1)*(i/pml_nl)**m for i in range(0, pml_nl)])
         pml_sigmax = np.array([pml_sigmax_max*(i/pml_nl)**m for i in range(0, pml_nl)])
         
-        k_tot_E = np.hstack((pml_kx, np.ones(Nx-1 - 2*pml_nl), pml_kx[::-1]))
-        sigma_tot_E = np.hstack((pml_sigmax, np.zeros(Nx - 1 - 2*pml_nl), pml_sigmax[::-1]))
-        k_tot_H = np.hstack((pml_kx, np.ones(Nx+1 - 2*pml_nl), pml_kx[::-1]))
-        sigma_tot_H = np.hstack((pml_sigmax, np.zeros(Nx + 1 - 2*pml_nl), pml_sigmax[::-1]))
-        print(k_tot_E, sigma_tot_E, k_tot_H, sigma_tot_H)
+        k_tot_E = np.hstack((pml_kx[::-1], np.ones(Nx-1 - 2*pml_nl), pml_kx))
+        sigma_tot_E = np.hstack((pml_sigmax[::-1], np.zeros(Nx - 1 - 2*pml_nl), pml_sigmax))
+        k_tot_H = np.hstack((pml_kx[::-1], np.ones(Nx+1 - 2*pml_nl), pml_kx))
+        sigma_tot_H = np.hstack((pml_sigmax[::-1], np.zeros(Nx + 1 - 2*pml_nl), pml_sigmax))
+        #print(k_tot_E, sigma_tot_E, k_tot_H, sigma_tot_H)
         # pml_kymax = 4
         # pml_sigmay_max = (m+1)/(150*np.pi*dy)
         # pml_ky = np.array([1 + (pml_kymax -1)*(i/pml_nl)**m for i in range(0, pml_nl)])
         # pml_sigmay = np.array([pml_sigmay_max*(i/pml_nl)**m for i in range(0, pml_nl)])
-        M1 = np.hstack((A1/dt,                     np.zeros((Nx, Nx+1)),                          np.zeros((Nx, Nx-1)),     D2,                       np.zeros((Nx, Nx-1))))
-        M2 = np.hstack((np.zeros((Nx, Nx-1)),      A2@np.diag(k_tot_H/dt+Z0*sigma_tot_H/2),       np.zeros((Nx, Nx-1)),     np.zeros((Nx, Nx+1)),     D1))
-        M3 = np.hstack((-I_E/dt,                   np.zeros((Nx-1, Nx+1)),                        I_E/dt,                   np.zeros((Nx-1, Nx+1)),   np.zeros((Nx-1, Nx-1))))
-        M4 = np.hstack((np.zeros((Nx + 1, Nx-1)),  -I_H/dt,                                       np.zeros((Nx + 1, Nx-1)), I_H/dt,                   np.zeros((Nx+1, Nx-1))))
-        M5 = np.hstack((np.zeros((Nx - 1, Nx-1)),  np.zeros((Nx - 1, Nx+1)),                     -I_E/dt,                   np.zeros((Nx - 1, Nx+1)), np.diag(k_tot_E/dt+Z0*sigma_tot_E/2)))
+        print(np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2))
+        M1 = np.hstack((A1/self.dt,                np.zeros((Nx, Nx+1)),                          np.zeros((Nx, Nx-1)),     D2,                       np.zeros((Nx, Nx-1))))
+        M2 = np.hstack((np.zeros((Nx, Nx-1)),      A2@np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2),  np.zeros((Nx, Nx-1)),     np.zeros((Nx, Nx+1)),     D1))
+        M3 = np.hstack((-I_E/self.dt,              np.zeros((Nx-1, Nx+1)),                        I_E/self.dt,              np.zeros((Nx-1, Nx+1)),   np.zeros((Nx-1, Nx-1))))
+        M4 = np.hstack((np.zeros((Nx + 1, Nx-1)),  -I_H/self.dt,                                  np.zeros((Nx + 1, Nx-1)), I_H/self.dt,              np.zeros((Nx+1, Nx-1))))
+        M5 = np.hstack((np.zeros((Nx - 1, Nx-1)),  np.zeros((Nx - 1, Nx+1)),                      -I_E/self.dt,             np.zeros((Nx - 1, Nx+1)), np.diag(k_tot_E/self.dt+Z0*sigma_tot_E/2)))
         
-        N1 = np.hstack((A1/dt,                     np.zeros((Nx, Nx+1)),                          np.zeros((Nx, Nx-1)),    -D2,                       np.zeros((Nx, Nx-1))))
-        N2 = np.hstack((np.zeros((Nx, Nx-1)),      A2@np.diag(k_tot_H/dt-Z0*sigma_tot_H/2),       np.zeros((Nx, Nx-1)),     np.zeros((Nx, Nx+1)),     -D1))
-        N3 = np.hstack((-I_E/dt,                   np.zeros((Nx-1, Nx+1)),                        I_E/dt,                   np.zeros((Nx-1, Nx+1)),   np.zeros((Nx-1, Nx-1))))
-        N4 = np.hstack((np.zeros((Nx + 1, Nx-1)),  -I_H/dt,                                       np.zeros((Nx + 1, Nx-1)), I_H/dt,                   np.zeros((Nx+1, Nx-1))))
-        N5 = np.hstack((np.zeros((Nx - 1, Nx-1)),  np.zeros((Nx - 1, Nx+1)),                     -I_E/dt,                   np.zeros((Nx - 1, Nx+1)), np.diag(k_tot_E/dt-Z0*sigma_tot_E/2)))
+        N1 = np.hstack((A1/self.dt,                np.zeros((Nx, Nx+1)),                          np.zeros((Nx, Nx-1)),    -D2,                       np.zeros((Nx, Nx-1))))
+        N2 = np.hstack((np.zeros((Nx, Nx-1)),      A2@np.diag(k_tot_H/self.dt-Z0*sigma_tot_H/2),  np.zeros((Nx, Nx-1)),     np.zeros((Nx, Nx+1)),     -D1))
+        N3 = np.hstack((-I_E/self.dt,              np.zeros((Nx-1, Nx+1)),                        I_E/self.dt,              np.zeros((Nx-1, Nx+1)),   np.zeros((Nx-1, Nx-1))))
+        N4 = np.hstack((np.zeros((Nx + 1, Nx-1)),  -I_H/self.dt,                                  np.zeros((Nx + 1, Nx-1)), I_H/self.dt,              np.zeros((Nx+1, Nx-1))))
+        N5 = np.hstack((np.zeros((Nx - 1, Nx-1)),  np.zeros((Nx - 1, Nx+1)),                      -I_E/self.dt,             np.zeros((Nx - 1, Nx+1)), np.diag(k_tot_E/self.dt-Z0*sigma_tot_E/2)))
         
         M = np.vstack((M1, M2, M3, M4, M5))
         
         self.M_inv = np.linalg.inv(M)
         self.N = np.vstack((N1, N2, N3, N4, N5))
+        self.M_N = self.M_inv@self.N
 
         #explicit part
         self.ex2 = np.zeros((Nx+1, Ny+1))
@@ -109,19 +112,19 @@ class UCHIE:
 
         
 
-        self.Betax_min = np.diag(k_tot_H/dt-Z0*sigma_tot_H/2)
-        self.Betay_min = np.eye(Nx+1)/dt
-        self.Betaz_min = np.eye(Nx+1)/dt
-        self.Betax_plus = np.diag(k_tot_H/dt+Z0*sigma_tot_H/2)
-        self.Betay_plus_inv = np.linalg.inv(np.eye(Nx+1)/dt)
-        self.Betaz_plus_inv = np.linalg.inv(np.eye(Nx+1)/dt)
+        self.Betax_min = np.diag(k_tot_H/self.dt-Z0*sigma_tot_H/2)
+        self.Betay_min = np.eye(Nx+1)/self.dt
+        self.Betaz_min = np.eye(Nx+1)/self.dt
+        self.Betax_plus = np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2)
+        self.Betay_plus_inv = np.linalg.inv(np.eye(Nx+1)/self.dt)
+        self.Betaz_plus_inv = np.linalg.inv(np.eye(Nx+1)/self.dt)
 
     def explicit(self):
         self.ex2old = copy.deepcopy(self.ex2)
         self.ex1old = copy.deepcopy(self.ex1)
 
-        self.ex2[:,1:-1] = self.ex2[:,1:-1] + self.dt/(mu0*self.dy)*(self.X[3*self.Nx-1:4*self.Nx,1:] - self.X[3*self.Nx-1:4*self.Nx,:-1])
-        self.ex1[:,1:-1] = self.Betay_plus_inv@(self.Betay_min@self.ex1[:,1:-1] + (self.ex2[:,1:-1] - self.ex2old[:,1:-1])/dt)
+        self.ex2[:,1:-1] = self.ex2[:,1:-1] + self.dt/(self.dy)*(self.X[3*self.Nx-1:4*self.Nx,1:] - self.X[3*self.Nx-1:4*self.Nx,:-1])
+        self.ex1[:,1:-1] = self.Betay_plus_inv@(self.Betay_min@self.ex1[:,1:-1] + (self.ex2[:,1:-1] - self.ex2old[:,1:-1])/self.dt)
         self.ex0[:,1:-1] = self.Betaz_plus_inv@(self.Betaz_min@self.ex0[:,1:-1] + self.Betax_plus@self.ex1[:,1:-1] - self.Betax_min@self.ex1old[:,1:-1])
         
         
@@ -130,9 +133,9 @@ class UCHIE:
     def implicit(self, n, source):
         Y = np.vstack((np.zeros((self.Nx, self.Ny)), self.A2@(self.ex0[:, 1:] - self.ex0[:, :-1])/self.dy, np.zeros((self.Nx-1, self.Ny)), np.zeros((self.Nx+1, self.Ny)), np.zeros((self.Nx-1, self.Ny)) ))
         S = np.zeros((5*self.Nx-1, self.Ny))
-        S[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] = source.J(n*self.dt)*self.dt
-        
-        self.X = self.M_inv@(self.N@self.X + Y + S)
+        S[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] = 2*(1/Z0)*source.J(n*self.dt/c0)*self.dt
+
+        self.X = self.M_N@self.X + self.M_inv@(Y + S)
         print(np.shape(self.X))
 
     def calculate(self, Nt, source):
@@ -179,15 +182,16 @@ class UCHIE:
 
 dx = 0.005 # m
 dy = 0.01 # ms
-c = 299792458 # m/s
+
 Sy = 0.5 # !Courant number, for stability this should be smaller than 1
-dt = Sy*dy/c
+dt = Sy*dy/c0
+print(dt)
 
-Nx = 10
-Ny = 5
-Nt = 10
+Nx = 80
+Ny = 40
+Nt = 150
 
-pml_nl = 2
+pml_nl = 10
 pml_kmax = 4
 eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
@@ -198,7 +202,7 @@ xs = Nx*dx/2
 ys = Ny*dy/2
 
 
-source = Source(xs, ys, 300, 3e-9, 9e-11)
+source = Source(xs, ys, 300, 1e-10, 5e-10)
 
 
 scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
