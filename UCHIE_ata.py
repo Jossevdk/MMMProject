@@ -81,16 +81,10 @@ class UCHIE:
         Y = Ex[:-1, 1:] + Ex[1:, 1:] - Ex[:-1, :-1] - Ex[1:, :-1]
 
         S = np.zeros((2*Nx+2, Ny))
-        S[int(source.x/dx), int(source.y/dy)] = source.J(n*dt)#*dt
+        S[Nx + int(source.x/dx), int(source.y/dy)] = source.J(n*dt)*dt
 
-        X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy -M1_inv@S
-        # X[0, :] = np.zeros(Ny)
-        # X[Nx, :] = np.zeros(Ny)
-        # X[Nx+1, :] = np.zeros(Ny)
-        # X[2*Nx+1, :] = np.zeros(Ny)
-
-        # X[:,0] = np.zeros(2*Nx+2)
-        # X[:,Ny-1] = np.zeros(2*Nx+2)
+        X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy + M1_inv@S
+        
 
         return X
         
@@ -145,8 +139,8 @@ class UCHIE:
 eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
 
-dx = 0.05e-1 # m
-dy = 0.05e-1# ms
+dx = 0.005 # m
+dy = 0.01 # ms
 c = 299792458 # m/s
 Sy = 0.8 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c
@@ -166,12 +160,11 @@ Nt = 500
 # Nt = 100
 
 
-xs = Nx/2*dx
-ys = Ny/2*dy
+xs = 0.3
+ys = 0.3
 
-t0 = dt*Nt/15
-sigma = t0/5
-source = Source(xs, ys, 1, t0, sigma)
+
+source = Source(xs, ys, 300, 5e-10, 9e-11)
 
 test = UCHIE()
 data_time, data = test.calc_field(dx, dy, dt, Nx, Ny, Nt, eps0, mu0, source)
