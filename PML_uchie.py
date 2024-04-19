@@ -25,6 +25,8 @@ class Source:
         
     #This will call the function depending on which type of source you have    
     def J(self, t):
+        print(t)
+        #return 10*np.sin(2*np.pi*2e9*t + 0.1)
         return self.J0*np.exp(-(t-self.tc)**2/(2*self.sigma**2))
 
 
@@ -131,11 +133,16 @@ class UCHIE:
   
 
     def implicit(self, n, source):
-        Y = np.vstack((np.zeros((self.Nx, self.Ny)), self.A2@(self.ex0[:, 1:] - self.ex0[:, :-1])/self.dy, np.zeros((self.Nx-1, self.Ny)), np.zeros((self.Nx+1, self.Ny)), np.zeros((self.Nx-1, self.Ny)) ))
-        S = np.zeros((5*self.Nx-1, self.Ny))
-        S[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] = 2*(1/Z0)*source.J(n*self.dt/c0)*self.dt
+        S_ = np.zeros((self.Nx, self.Ny))
+        S_[int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)
 
-        self.X = self.M_N@self.X + self.M_inv@(Y + S)
+        Y = np.vstack((np.zeros((self.Nx, self.Ny)),S_ + self.A2@(self.ex0[:, 1:] - self.ex0[:, :-1])/self.dy, np.zeros((self.Nx-1, self.Ny)), np.zeros((self.Nx+1, self.Ny)), np.zeros((self.Nx-1, self.Ny)) ))
+        #S = np.zeros((5*self.Nx-1, self.Ny))
+        #S[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
+
+        self.X = self.M_N@self.X + self.M_inv@(Y)
+        #self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] += -2000000000000000*(1/Z0)*source.J(n*self.dt/c0)/c0
+        print(self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)])
         print(np.shape(self.X))
 
     def calculate(self, Nt, source):
@@ -146,7 +153,7 @@ class UCHIE:
             self.implicit(n, source)
             self.explicit()
             data_time.append(self.dt*n)
-            data.append(copy.deepcopy((self.ex0.T)))
+            data.append(copy.deepcopy((Z0*self.ex0.T)))
             
         
         return data_time, data
@@ -183,13 +190,13 @@ class UCHIE:
 dx = 0.005 # m
 dy = 0.01 # ms
 
-Sy = 0.5 # !Courant number, for stability this should be smaller than 1
+Sy = 0.8 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c0
 print(dt)
 
-Nx = 80
-Ny = 40
-Nt = 150
+Nx = 300
+Ny = 300
+Nt = 200
 
 pml_nl = 10
 pml_kmax = 4
@@ -201,8 +208,11 @@ Z0 = np.sqrt(mu0/eps0)
 xs = Nx*dx/2
 ys = Ny*dy/2
 
+tc = dt*Nt/3
+print(tc)
+sigma = tc/3
 
-source = Source(xs, ys, 300, 1e-10, 5e-10)
+source = Source(xs, ys, 1, tc, sigma)
 
 
 scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
