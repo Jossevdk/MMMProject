@@ -26,8 +26,8 @@ class Source:
     #This will call the function depending on which type of source you have    
     def J(self, t):
         #print(t)
-        #return 10*np.sin(2*np.pi*2e9*t + 0.1)
-        return self.J0*np.exp(-(t-self.tc)**2/(2*self.sigma**2))
+        #return 10e7*np.cos(2*np.pi*2e7*t + 0.5)
+        return self.J0*np.exp(-(t-self.tc)**2/(2*self.sigma**2))*np.cos(10*t/self.tc)
 
 
 
@@ -148,7 +148,7 @@ class UCHIE:
     def Update(self,n, source):
         self.implicit(n, source)
         self.explicit()
-        return Z0*self.ex0.T
+        return Z0*self.X[4*self.Nx:5*self.Nx-1,:]
 
     def calculate(self, Nt, source):
         data_time = []
@@ -158,12 +158,12 @@ class UCHIE:
             self.implicit(n, source)
             self.explicit()
             data_time.append(self.dt*n)
-            #data.append(copy.deepcopy((Z0*self.ex0.T)))
-            data.append(copy.deepcopy((self.X[3*self.Nx-1:4*self.Nx,:].T)))
+            data.append(copy.deepcopy((Z0*self.ex0.T)))
+            #data.append(copy.deepcopy((self.X[3*self.Nx-1:4*self.Nx,:].T)))
             
         
         return data_time, data
-    def animate_field(self, t, data, source, dx, dy, Nx, Ny):
+    def animate_field(self, t, data):
         fig, ax = plt.subplots()
 
         ax.set_xlabel("x-axis [k]")
@@ -193,38 +193,38 @@ class UCHIE:
 
 
 
-dx = 0.00005 # m
-dy = 0.0001 # ms
+# dx = 0.00005 # m
+# dy = 0.0001 # ms
 
-Sy = 0.8 # !Courant number, for stability this should be smaller than 1
-dt = Sy*dy/c0
-#print(dt)
+# Sy = 0.8 # !Courant number, for stability this should be smaller than 1
+# dt = Sy*dy/c0
+# #print(dt)
 
-Nx = 300
-Ny = 300
-Nt = 200
+# Nx = 300
+# Ny = 300
+# Nt = 200
 
-pml_nl = 10
-pml_kmax = 4
-eps0 = 8.854 * 10**(-12)
-mu0 = 4*np.pi * 10**(-7)
-Z0 = np.sqrt(mu0/eps0)
-
-
-xs = Nx*dx/2
-ys = Ny*dy/2
-
-tc = dt*Nt/3
-#print(tc)
-sigma = tc/3
-
-source = Source(xs, ys, 1, tc, sigma)
+# pml_nl = 10
+# pml_kmax = 4
+# eps0 = 8.854 * 10**(-12)
+# mu0 = 4*np.pi * 10**(-7)
+# Z0 = np.sqrt(mu0/eps0)
 
 
-scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
+# xs = Nx*dx/2
+# ys = Ny*dy/2
+
+# tc = dt*Nt/3
+# #print(tc)
+# sigma = tc/3
+
+# source = Source(xs, ys, 1, tc, sigma)
+
+
+# scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
 
 # data_time, data = scheme.calculate(Nt, source)
-# scheme.animate_field(data_time, data, source, dx, dy, Nx, Ny)
+# scheme.animate_field(data_time, data)
 
          
     

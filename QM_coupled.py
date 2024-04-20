@@ -252,7 +252,7 @@ dt = Sy*dy/c0
 
 Nx = 300
 Ny = 300
-Nt = 80000
+Nt = 200
 
 pml_nl = 10
 pml_kmax = 4
@@ -261,8 +261,8 @@ mu0 = 4*np.pi * 10**(-7)
 Z0 = np.sqrt(mu0/eps0)
 
 J0 = 10e7
-xs = Nx*dx/2
-ys = Ny*dy/2
+xs = Nx*dx/3
+ys = Ny*dy/3
 
 tc = dt*Nt/3
 #print(tc)

@@ -7,36 +7,31 @@ from matplotlib.animation import FuncAnimation
 
 #For the QM part, we require a simple 1D FDTD scheme
 
+from PML_uchie import Source, UCHIE
+
+c0 = 299792458
+eps0 = 8.854 * 10**(-12)
+mu0 = 4*np.pi * 10**(-7)
+
+Z0 = np.sqrt(mu0/eps0)
+
+global g
+g = True
+
+
+
+# source = Source(xs, ys, 1, tc, sigma)
+
+
+# scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
+
 
 #strategy: electric field from EM part is source in the interaction Hamiltionian. 
 #Output is a quantum current which serves as a source for EM part
 
 
 ### Electric field ###
-class ElectricField:
-    def __init__(self, field_type, dt, amplitude=1.0):
-        self.field_type = field_type
-        self.amplitude = amplitude
-        self.dt = dt
 
-    def generate(self, t, **kwargs):
-        if self.field_type == 'gaussian':
-            return self._gaussian(t, **kwargs)
-        elif self.field_type == 'sinusoidal':
-            return self._sinusoidal(t, **kwargs)
-        
-        #add a third case where these is coupling with the EM part
-        else:
-            raise ValueError(f"Unknown field type: {self.field_type}")
-
-    def _gaussian(self, t, t0=0, sigma=1):
-        t0 = 10000*self.dt
-        return self.amplitude * np.exp(-0.5 * ((t - t0) / sigma) ** 2)
-
-    def _sinusoidal(self, t, omega=1):
-        t0= 1000*self.dt
-        #add damping function
-        return self.amplitude * np.sin(omega * t)*2/np.pi* np.arctan(t/t0)
 
 
 
@@ -56,13 +51,29 @@ class Potential:
     
 
 #### QM ####
-class QM:
-    def __init__(self,order):#,Ny,dy, dt, hbar, m, q, r, potential, efield, n,order,N):
+class coupled:
+    def __init__(self,order, Nx,Ny, dx, dy,dt, pml_kmax, pml_nl, J0, xs, ys, tc, sigma):#,Ny,dy, dt, hbar, m, q, r, potential, efield, n,order,N):
+        self.Nx = Nx
+        self.xs = xs
+        self.ys = ys
+        self.Ny= Ny
+        self.dx = dx
+        self.dy=dy
+        self.dt = dt
+        self.pml_kmax = pml_kmax
+        self.pml_nl=pml_nl
+        self.J0 = J0
+        self.tc = tc
+        self.sigma=sigma
         self.result = None
         self.order = order
         self.potential = potential
-       
+        self.source  = Source(self.xs, self.ys, self.J0, self.tc, self.sigma)
+        print(self.source.x)
+        self.uchie = UCHIE(self.Nx, self.Ny, self.dx, self.dy, self.dt, pml_kmax = self.pml_kmax, pml_nl = self.pml_nl)
         #self.Ny = Ny, self.dy = dy, self.dt = dt, self.hbar = hbar = self.m = m, self.q = q,
+
+        
     def initialize(self, dy, Ny,m,omega, hbar,alpha):
         #coherent state at y=0 for electron
         
@@ -89,13 +100,15 @@ class QM:
         return psi
 
     ### Update ###
-    def update(self, PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N):
+    def update(self, PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, n,order,N, Efield):
         #E = efield.generate((n)*dt)*np.ones(Ny)
-      
-        E = efield.generate((n)*dt, omega=omega)*np.ones(Ny)
-
+        
+        E = copy.deepcopy(Efield[2*Nx//4,:])
+        Eo = E
         print(E[Ny//2])
-
+        #print((q*r*E-potential.V())[Ny//2 - 5: Ny//2 + 5])
+        #print(np.max(E))
+        # print(Efield[1:, Ny//2])
         #E= 0
         PsiReo = PsiRe
         PsiRe = PsiReo -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(q*r*E-potential.V())*PsiIm
@@ -104,8 +117,10 @@ class QM:
         PsiRe[0] = 0
         PsiRe[-1] = 0
         #E = efield.generate((n+1/2)*dt)*np.ones(Ny)
-        E = efield.generate((n+1/2)*dt,omega=omega)*np.ones(Ny)
+        #E = efield.generate((n+1/2)*dt,omega=omega)*np.ones(Ny)
         #E= 0
+
+        E = copy.deepcopy(Efield[2*Nx//4,1:] + Efield[2*Nx//4,:-1])/2
         PsiImo = PsiIm
         PsiIm = PsiImo +hbar*dt/(2*m)*self.diff(PsiRe,dy,order) + dt/hbar*(q*r*E-potential.V())*PsiRe
         #PsiIm = PsiIm +hbar*dt/(2*m)*self.diff(PsiRe,dy, order) + dt/hbar*(-potential.V())*PsiRe
@@ -124,7 +139,7 @@ class QM:
     
         
     
-    def calc_wave(self, dy, dt, Ny, Nt,  hbar, m ,q ,potential, efield,alpha,order,N):
+    def calc_wave(self, dy, dt, Ny, Nt,  hbar, m ,q ,potential,alpha,order,N):
         PsiRe,PsiIm ,r = self.initialize(dy, Ny,m,omega, hbar,alpha)
         data_time = []
         dataRe = []
@@ -132,8 +147,45 @@ class QM:
         dataprob = []
         datacurr = []
 
+        
+        data = []
+        E = np.zeros(Ny)
+
+        
+
         for n in range(1, Nt):
-            PsiRe, PsiIm , J ,prob = self.update(PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N)
+            Eold = E
+            Efield = 5*1e11*self.uchie.Update(n,self.source)
+            E = copy.deepcopy(Efield[2*Nx//4,:])
+            
+            #print((q*r*E-potential.V())[Ny//2 - 5: Ny//2 + 5])
+            #print(np.max(E))
+            # print(Efield[1:, Ny//2])
+            #E= 0
+            PsiReo = PsiRe
+            PsiRe = PsiReo -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(q*r*E-potential.V())*PsiIm
+            #PsiRe = PsiRe -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(-potential.V())*PsiIm
+
+            PsiRe[0] = 0
+            PsiRe[-1] = 0
+            #E = efield.generate((n+1/2)*dt)*np.ones(Ny)
+            #E = efield.generate((n+1/2)*dt,omega=omega)*np.ones(Ny)
+            #E= 0
+
+            E_half = (E + Eold)/2 
+            PsiImo = PsiIm
+            PsiIm = PsiImo +hbar*dt/(2*m)*self.diff(PsiRe,dy,order) + dt/hbar*(q*r*E_half-potential.V())*PsiRe
+            #PsiIm = PsiIm +hbar*dt/(2*m)*self.diff(PsiRe,dy, order) + dt/hbar*(-potential.V())*PsiRe
+
+            PsiIm[0] = 0
+            PsiIm[-1] = 0
+            #We need the PsiIm at half integer time steps -> interpol
+            PsiImhalf = (PsiImo + PsiIm)/2
+            J = N*q*hbar/(m*dy)*(PsiRe*np.roll(PsiImhalf,-1) - np.roll(PsiRe,-1)*PsiImhalf)
+            J[0]=0
+            J[-1]= 0
+
+            prob = PsiRe**2  + PsiImhalf**2
             #probability = PsiRe**2 + PsiIm**2 
             # PsiReint = 1/2*(PsiRe + np.roll(PsiRe, -1))
             # PsiReint[0]=0
@@ -144,13 +196,14 @@ class QM:
             dataIm.append(PsiIm)
             dataprob.append(prob)
             datacurr.append(J)
+            data.append(copy.deepcopy((Efield.T)))
             #J in input for EM part
         self.result = data_time, dataRe, dataIm, dataprob, datacurr
-        return data_time, dataRe, dataIm, dataprob, datacurr
+        return data_time, dataRe, dataIm, dataprob, datacurr, data
     
     def expvalues(self,dt, dy,  type):
         if self.result == None:
-            data_time, dataRe, dataIm, dataprob, datacurr = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+            data_time, dataRe, dataIm, dataprob, datacurr = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, alpha,order,N)
         else: data_time, dataRe, dataIm, dataprob, datacurr = self.result
         if type == 'position':
             exp = []
@@ -193,24 +246,24 @@ class QM:
         
         pass
 
-    def heatmap (self,dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N):
+    def heatmap (self,dy, dt, Ny, Nt,  hbar, m ,q ,potential,alpha,order,N):
         if self.result == None:
-            res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+            res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential,alpha,order,N)
         else:
             res = self.result
-        prob = res[3]
-        probsel = prob[::100]
+        probsel = res[3]
+        #probsel = prob[::100]
         plt.imshow(np.array(probsel).T)
         plt.show()
 
 
-    def animate(self,dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N):
+    def animate(self,dy, dt, Ny, Nt,  hbar, m ,q ,potential, alpha,order,N):
         if self.result == None:
-            res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+            res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential,alpha,order,N)
         else:
             res = self.result
-        prob = res[3]
-        probsel = prob[::100]
+        probsel = res[3]
+        # probsel = prob[::100]
         fig, ax = plt.subplots()
 
         # Create an empty plot object
@@ -233,8 +286,61 @@ class QM:
         # Show the animation
         plt.show()
 
-##########################################################
+    def animate_field(self, t, data):
+        fig, ax = plt.subplots()
 
+        ax.set_xlabel("x-axis [k]")
+        ax.set_ylabel("y-axis [l]")
+        # ax.set_xlim(0, Nx*dx)
+        # ax.set_ylim(0, Ny*dy)
+
+        label = "Field"
+        
+        # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
+
+        cax = ax.imshow(data[0])
+        ax.set_title("T = 0")
+        # Draw a vertical line at x = Nx/2
+        ax.axvline(x=2*Nx//4, color='r')  # 'r' is the color red
+
+        def animate_frame(i):
+            cax.set_array(data[i])
+            ax.set_title("T = " + "{:.12f}".format(t[i]*1000) + "ms")
+            return cax
+
+        global anim
+        
+        anim = animation.FuncAnimation(fig, animate_frame, frames = (len(data)), interval=20)
+        plt.show()
+
+##########################################################
+dx = 1e-10 # m
+dy = 0.125e-9# ms
+
+Sy = 0.9 # !Courant number, for stability this should be smaller than 1
+dt = Sy*dy/c0
+#print(dt)
+
+Nx = 300
+Ny = 300
+Nt = 800
+
+pml_nl = 10
+pml_kmax = 4
+eps0 = 8.854 * 10**(-12)
+mu0 = 4*np.pi * 10**(-7)
+Z0 = np.sqrt(mu0/eps0)
+
+J0 = 10e7
+xs = Nx*dx/4
+ys = Ny*dy/2
+
+tc = dt*Nt/3
+#print(tc)
+sigma = tc/3
+
+
+#######################################################
         
 eps0 = ct.epsilon_0
 mu0 = ct.mu_0
@@ -243,17 +349,16 @@ m = ct.electron_mass
 q = ct.elementary_charge 
 
 #dy = 0.125*10**(-9)
-dy = 0.125e-9
-#dy = 0.1
+# dy = 0.1
+# dy = 0.1
 #assert(dy==dy2) # m
 c = ct.speed_of_light # m/s
 Sy = 1 # !Courant number, for stability this should be smaller than 1
-dt = 10*dy/c
+#dt = 0.1*dy/c
 
 
-Ny = 400
-#Nt =20000
-Nt = 100000
+# Ny = 300
+# Nt =100
 N = 10000 #particles/m2
 
 
@@ -263,17 +368,18 @@ potential = Potential(m,omega, Ny, dy)
 potential.V()
 
 #Efield = ElectricField('gaussian',dt, amplitude = 10000000)
-Efield = ElectricField('sinusoidal',dt, amplitude = 1e7)
+#Efield = ElectricField('sinusoidal',dt, amplitude = 5e6)
 #Efield.generate(1)
 
 order = 'fourth'
 
-qm = QM(order)
-res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha, order,N)
+qm = coupled(order, Nx,Ny, dx, dy,dt, pml_kmax, pml_nl, J0, xs, ys, tc, sigma)
+res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, alpha, order,N)
 # prob = res[3]
 # probsel = prob[::100]
 
-qm.animate( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+qm.animate( dy, dt, Ny, Nt,  hbar, m ,q ,potential,alpha,order,N)
+qm.animate_field(res[0], res[5])
 # plt.imshow(probsel)
 # plt.colorbar()
 # #plt.plot(prob[8000])
@@ -287,11 +393,11 @@ qm.animate( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
 #     plt.title(type)
 #     plt.show()
 
-exp = qm.expvalues(dt, dy, 'continuity')
-expsel = exp[::100]
-    #print(expsel)
-plt.imshow(np.array(expsel).T)
-plt.show()
+# exp = qm.expvalues(dt, dy, 'continuity')
+# expsel = exp[::100]
+#     #print(expsel)
+# plt.imshow(np.array(expsel).T)
+# plt.show()
 
 
-qm.heatmap(dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+#qm.heatmap(dy, dt, Ny, Nt,  hbar, m ,q ,potential,alpha,order,N)
