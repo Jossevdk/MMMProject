@@ -192,7 +192,7 @@ dy = 0.01 # ms
 
 Sy = 0.8 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c0
-print(dt)
+#print(dt)
 
 Nx = 300
 Ny = 300
@@ -209,7 +209,7 @@ xs = Nx*dx/2
 ys = Ny*dy/2
 
 tc = dt*Nt/3
-print(tc)
+#print(tc)
 sigma = tc/3
 
 source = Source(xs, ys, 1, tc, sigma)

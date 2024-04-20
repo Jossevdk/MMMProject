@@ -87,7 +87,7 @@ class UCHIE:
 
         S = np.zeros((2*Nx+2, Ny))
         S[  int(source.x/dx), int(source.y/dy)] = source.J(n*dt)
-        S[Nx+ int(source.x/dx), int(source.y/dy)] = source.J(n*dt)
+        #S[Nx+ int(source.x/dx), int(source.y/dy)] = source.J(n*dt)
     
         #X = M1_inv@M2@X + M1_inv@np.vstack((Y, S))/dy #+ M1_inv@S
         X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy +M1_inv@S
