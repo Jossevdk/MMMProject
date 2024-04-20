@@ -1,3 +1,4 @@
+
 import numpy as np
 import matplotlib.pyplot as plt
 import copy
@@ -34,6 +35,7 @@ class ElectricField:
         return self.amplitude * np.exp(-0.5 * ((t - t0) / sigma) ** 2)
 
     def _sinusoidal(self, t, omega=1):
+        t0= 5*self.dt
         t0= 1000*self.dt
         #add damping function
         return self.amplitude * np.sin(omega * t)*2/np.pi* np.arctan(t/t0)
@@ -61,7 +63,6 @@ class QM:
         self.result = None
         self.order = order
         self.potential = potential
-       
         #self.Ny = Ny, self.dy = dy, self.dt = dt, self.hbar = hbar = self.m = m, self.q = q,
     def initialize(self, dy, Ny,m,omega, hbar,alpha):
         #coherent state at y=0 for electron
@@ -91,7 +92,6 @@ class QM:
     ### Update ###
     def update(self, PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N):
         #E = efield.generate((n)*dt)*np.ones(Ny)
-      
         E = efield.generate((n)*dt, omega=omega)*np.ones(Ny)
         #E= 0
         PsiReo = PsiRe
@@ -172,6 +172,11 @@ class QM:
 
         if type == 'continuity':
             exp = []
+            for i in range(len(data_time)-1):
+                #rho is known at n, r , J at n+1/2, r+1/2
+                #datacurr[i] = 1/4*(datacurr[i]+np.roll(datacurr[i],-1)+datacurr[i+1]+np.roll(datacurr[i+1],-1))
+                val = q*(dataprob[i+1]-dataprob[i])/dt+1/dy*(np.roll(datacurr[i],-1)-datacurr[i])
+                exp.append(np.sum(val))
             for i in range(1,len(data_time)-1):
                 #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
 
@@ -239,9 +244,8 @@ hbar = ct.hbar #J⋅s
 m = ct.electron_mass
 q = ct.elementary_charge 
 
-#dy = 0.125*10**(-9)
+
 dy = 0.125e-9
-#dy = 0.1
 #assert(dy==dy2) # m
 c = ct.speed_of_light # m/s
 Sy = 1 # !Courant number, for stability this should be smaller than 1
@@ -249,18 +253,22 @@ dt = 10*dy/c
 
 
 Ny = 400
-#Nt =20000
-Nt = 100000
+#Nt =50000
+Nt =200000
 N = 10000 #particles/m2
 
 
 omega = 50e12 #[rad/s]
+alpha = 4
 alpha = 0
 potential = Potential(m,omega, Ny, dy)
 potential.V()
 
-#Efield = ElectricField('gaussian',dt, amplitude = 10000000)
+#Efield = ElectricField('gaussian',amplitude = 10000000)
 Efield = ElectricField('sinusoidal',dt, amplitude = 1e7)
+Efield.generate(1, omega= omega )
+#Efield = ElectricField('gaussian',dt, amplitude = 10000000)
+Efield = ElectricField('sinusoidal',dt, amplitude = 5e6)
 #Efield.generate(1)
 
 order = 'fourth'
@@ -275,6 +283,13 @@ qm.animate( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
 # plt.colorbar()
 # #plt.plot(prob[8000])
 # plt.show()
+# types = ['position', 'momentum', 'energy', 'continuity']
+# for type in types: 
+#     exp = qm.expvalues(dt, dy, type)
+#     expsel = exp[::100]
+#     plt.plot(expsel)
+#     plt.title(type)
+#     plt.show()
 # types = ['position', 'momentum', 'energy']
 # for type in types: 
 #     exp = qm.expvalues(dt, dy, type)
@@ -284,11 +299,11 @@ qm.animate( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
 #     plt.title(type)
 #     plt.show()
 
-exp = qm.expvalues(dt, dy, 'continuity')
-expsel = exp[::100]
-    #print(expsel)
-plt.imshow(np.array(expsel).T)
-plt.show()
+# exp = qm.expvalues(dt, dy, 'continuity')
+# expsel = exp[::100]
+#     #print(expsel)
+# plt.imshow(np.array(expsel).T)
+# plt.show()
 
 
 qm.heatmap(dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)

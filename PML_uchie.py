@@ -25,7 +25,7 @@ class Source:
         
     #This will call the function depending on which type of source you have    
     def J(self, t):
-        print(t)
+        #print(t)
         #return 10*np.sin(2*np.pi*2e9*t + 0.1)
         return self.J0*np.exp(-(t-self.tc)**2/(2*self.sigma**2))
 
@@ -86,7 +86,7 @@ class UCHIE:
         # pml_sigmay_max = (m+1)/(150*np.pi*dy)
         # pml_ky = np.array([1 + (pml_kymax -1)*(i/pml_nl)**m for i in range(0, pml_nl)])
         # pml_sigmay = np.array([pml_sigmay_max*(i/pml_nl)**m for i in range(0, pml_nl)])
-        print(np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2))
+        #print(np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2))
         M1 = np.hstack((A1/self.dt,                np.zeros((Nx, Nx+1)),                          np.zeros((Nx, Nx-1)),     D2,                       np.zeros((Nx, Nx-1))))
         M2 = np.hstack((np.zeros((Nx, Nx-1)),      A2@np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2),  np.zeros((Nx, Nx-1)),     np.zeros((Nx, Nx+1)),     D1))
         M3 = np.hstack((-I_E/self.dt,              np.zeros((Nx-1, Nx+1)),                        I_E/self.dt,              np.zeros((Nx-1, Nx+1)),   np.zeros((Nx-1, Nx-1))))
@@ -142,8 +142,13 @@ class UCHIE:
 
         self.X = self.M_N@self.X + self.M_inv@(Y)
         #self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] += -2000000000000000*(1/Z0)*source.J(n*self.dt/c0)/c0
-        print(self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)])
-        print(np.shape(self.X))
+        # print(self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)])
+        # print(np.shape(self.X))
+
+    def Update(self,n, source):
+        self.implicit(n, source)
+        self.explicit()
+        return Z0*self.ex0.T
 
     def calculate(self, Nt, source):
         data_time = []
@@ -153,7 +158,8 @@ class UCHIE:
             self.implicit(n, source)
             self.explicit()
             data_time.append(self.dt*n)
-            data.append(copy.deepcopy((Z0*self.ex0.T)))
+            #data.append(copy.deepcopy((Z0*self.ex0.T)))
+            data.append(copy.deepcopy((self.X[3*self.Nx-1:4*self.Nx,:].T)))
             
         
         return data_time, data
@@ -187,8 +193,8 @@ class UCHIE:
 
 
 
-dx = 0.005 # m
-dy = 0.01 # ms
+dx = 0.00005 # m
+dy = 0.0001 # ms
 
 Sy = 0.8 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c0
@@ -217,8 +223,8 @@ source = Source(xs, ys, 1, tc, sigma)
 
 scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
 
-data_time, data = scheme.calculate(Nt, source)
-scheme.animate_field(data_time, data, source, dx, dy, Nx, Ny)
+# data_time, data = scheme.calculate(Nt, source)
+# scheme.animate_field(data_time, data, source, dx, dy, Nx, Ny)
 
          
     
