@@ -33,7 +33,7 @@ class Source:
         #print(t)
         #return 10e7*np.cos(2*np.pi*2e7*t + 0.5)
         #print(t, self.tc, self.sigma)
-        return self.J0*np.exp(-(t-self.tc)**2/(2*self.sigma**2))
+        return self.J0*np.exp(-(t-self.tc)**2.0/(2*self.sigma**2.0))
 
 
 
@@ -57,8 +57,8 @@ class UCHIE:
         self.dx = dx
         self.dy = dy
         self.dt = c0*dt
-        self.X = th.zeros((5*Nx-1, Ny)).to(device) # the first Nx+1 rows are the Ey fields, and the others the Bz fields
-        self.Y = th.zeros((5*Nx-1, Ny)).to(device)
+        self.X = th.zeros((2*Nx, Ny)).to(device) # the first Nx+1 rows are the Ey fields, and the others the Bz fields
+        self.Y = th.zeros((2*Nx, Ny)).to(device)
 
         A1 = th.zeros((Nx, Nx-1))
         A1[th.arange(Nx-1), th.arange(Nx-1)] = 1
@@ -93,62 +93,40 @@ class UCHIE:
         sigma_tot_E = th.hstack((pml_sigmax.flip(dims=[0]), th.zeros(Nx - 1 - 2*pml_nl), pml_sigmax))
         k_tot_H = th.hstack((pml_kx.flip(dims=[0]), th.ones(Nx+1 - 2*pml_nl), pml_kx))
         sigma_tot_H = th.hstack((pml_sigmax.flip(dims=[0]), th.zeros(Nx + 1 - 2*pml_nl), pml_sigmax))
-        print(k_tot_E, sigma_tot_E, k_tot_H, sigma_tot_H)
         # pml_kymax = 4
         # pml_sigmay_max = (m+1)/(150*np.pi*dy)
         # pml_ky = np.array([1 + (pml_kymax -1)*(i/pml_nl)**m for i in range(0, pml_nl)])
         # pml_sigmay = np.array([pml_sigmay_max*(i/pml_nl)**m for i in range(0, pml_nl)])
         #print(np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2))
-        M1 = th.hstack((A1/self.dt,                th.zeros((Nx, Nx+1)),                          th.zeros((Nx, Nx-1)),     D2,                       th.zeros((Nx, Nx-1))))
-        M2 = th.hstack((th.zeros((Nx, Nx-1)),      th.mm(A2,th.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2)),  th.zeros((Nx, Nx-1)),     th.zeros((Nx, Nx+1)),     D1))
-        M3 = th.hstack((-I_E/self.dt,              th.zeros((Nx-1, Nx+1)),                        I_E/self.dt,              th.zeros((Nx-1, Nx+1)),   th.zeros((Nx-1, Nx-1))))
-        M4 = th.hstack((th.zeros((Nx + 1, Nx-1)),  -I_H/self.dt,                                  th.zeros((Nx + 1, Nx-1)), I_H/self.dt,              th.zeros((Nx+1, Nx-1))))
-        M5 = th.hstack((th.zeros((Nx - 1, Nx-1)),  th.zeros((Nx - 1, Nx+1)),                      -I_E/self.dt,             th.zeros((Nx - 1, Nx+1)), th.diag(k_tot_E/self.dt+Z0*sigma_tot_E/2)))
         
-        N1 = th.hstack((A1/self.dt,                th.zeros((Nx, Nx+1)),                          th.zeros((Nx, Nx-1)),    -D2,                       th.zeros((Nx, Nx-1))))
-        N2 = th.hstack((th.zeros((Nx, Nx-1)),      th.mm(A2,th.diag(k_tot_H/self.dt-Z0*sigma_tot_H/2)),  th.zeros((Nx, Nx-1)),     th.zeros((Nx, Nx+1)),     -D1))
-        N3 = th.hstack((-I_E/self.dt,              th.zeros((Nx-1, Nx+1)),                        I_E/self.dt,              th.zeros((Nx-1, Nx+1)),   th.zeros((Nx-1, Nx-1))))
-        N4 = th.hstack((th.zeros((Nx + 1, Nx-1)),  -I_H/self.dt,                                  th.zeros((Nx + 1, Nx-1)), I_H/self.dt,              th.zeros((Nx+1, Nx-1))))
-        N5 = th.hstack((th.zeros((Nx - 1, Nx-1)),  th.zeros((Nx - 1, Nx+1)),                      -I_E/self.dt,             th.zeros((Nx - 1, Nx+1)), th.diag(k_tot_E/self.dt-Z0*sigma_tot_E/2)))
-        
-        M = th.vstack((M1, M2, M3, M4, M5))
+        M_midden1 = th.hstack((A1/self.dt, D2))
+        M_midden2 = th.hstack((D1, A2/self.dt))
+
+        M = th.vstack((M_midden1, M_midden2)).to(device)
+
+        N_midden1 = th.hstack((A1/self.dt, -D2))
+        N_midden2 = th.hstack((-D1, A2/self.dt))
+
+        self.N = th.vstack((N_midden1, N_midden2)).to(device)
+
+    
         
         self.M_inv = th.linalg.inv(M).to(device)
-        N = th.vstack((N1, N2, N3, N4, N5)).to(device)
-        self.M_N = th.mm(self.M_inv,N).to(device)
+        
+        self.M_N = th.mm(self.M_inv,self.N)
 
-     
 
 
         #explicit part
-        self.ex2 = th.zeros((Nx+1, Ny+1)).to(device)
-        self.ex2old = th.zeros((Nx+1, Ny+1)).to(device)
-        self.ex1 = th.zeros((Nx+1, Ny+1)).to(device)
-        self.ex1old = th.zeros((Nx+1, Ny+1)).to(device)
+        
         self.ex0 = th.zeros((Nx+1, Ny+1)).to(device)
 
 
         
 
-        self.Betax_min = th.diag(k_tot_H/self.dt-Z0*sigma_tot_H/2).to(device)
-        self.Betay_min = (th.eye(Nx+1)/self.dt).to(device)
-        self.Betaz_min = (th.eye(Nx+1)/self.dt).to(device)   
-        self.Betax_plus = th.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2).to(device)
-        self.Betay_plus_inv = th.inverse(th.eye(Nx+1)/self.dt).to(device)
-        self.Betaz_plus_inv = th.inverse(th.eye(Nx+1)/self.dt).to(device)
-        
-        self.Betay = th.mm(self.Betay_plus_inv, self.Betay_min)
-        self.Betaz = th.mm(self.Betaz_plus_inv, self.Betaz_min)
-        self.Betazxplus = th.mm(self.Betaz_plus_inv, self.Betax_plus)
-        self.Betazxmin = th.mm(self.Betaz_plus_inv, self.Betax_min)
-
     def explicit(self):
-        self.ex2old = copy.deepcopy(self.ex2)
-        self.ex1old = copy.deepcopy(self.ex1)
-
-        self.ex2[:,1:-1] = self.ex2[:,1:-1] + self.dt/(self.dy)*(self.X[3*self.Nx-1:4*self.Nx,1:] - self.X[3*self.Nx-1:4*self.Nx,:-1])
-        self.ex1[:,1:-1] = th.mm(self.Betay_plus_inv, th.mm(self.Betay_min, self.ex1[:,1:-1]) + (self.ex2[:,1:-1] - self.ex2old[:,1:-1])/self.dt)
-        self.ex0[:,1:-1] = th.mm(self.Betaz_plus_inv, th.mm(self.Betaz_min, self.ex0[:,1:-1]) + th.mm(self.Betax_plus, self.ex1[:,1:-1]) - th.mm(self.Betax_min, self.ex1old[:,1:-1]))
+        
+        self.ex0[:,1:-1] = self.ex0[:,1:-1] + self.dt/(self.dy)*(self.X[self.Nx-1:2*self.Nx,1:] - self.X[self.Nx-1:2*self.Nx,:-1])
         
   
 
@@ -157,22 +135,19 @@ class UCHIE:
         #S_[int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)
         #Y = th.vstack((th.zeros((self.Nx, self.Ny)),S_ + th.mm(self.A2, (self.ex0[:, 1:] - self.ex0[:, :-1]))/self.dy, th.zeros((self.Nx-1, self.Ny)), th.zeros((self.Nx+1, self.Ny)), th.zeros((self.Nx-1, self.Ny)) ))
         self.Y[self.Nx:2*self.Nx , :] =  th.mm(self.A2, (self.ex0[:, 1:] - self.ex0[:, :-1]))/self.dy
-        #self.Y[self.Nx + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)
+        self.Y[self.Nx + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)
         #S = np.zeros((5*self.Nx-1, self.Ny))
         #S[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
-        #self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] += -2000*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
+        #self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
         
         self.X = th.mm(self.M_N, self.X )+ th.mm(self.M_inv, self.Y)
-        self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] +=   -2000000000000000*(1/Z0)*source.J(n*self.dt/c0)
-        self.X[self.Nx-1 + int(source.x/self.dx), 1+int(source.y/self.dy)] += -2000000000000000*(1/Z0)*source.J(n*self.dt/c0)
         
-        print(self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)])
         # print(np.shape(self.X))
 
     def Update(self,n, source):
         self.implicit(n, source)
         self.explicit()
-        return Z0*self.X[4*self.Nx:5*self.Nx-1,:].to("cpu").numpy()
+        return Z0*self.X[:self.Nx-1,:].to("cpu").numpy()
 
     def calculate(self, Nt, source):
         data_time = []
@@ -182,14 +157,15 @@ class UCHIE:
         for n in range(0, Nt):
             self.implicit(n, source)
             self.explicit()
-            if n % 5 == 0:
+            if n % 10 == 0:
+                print(n)
                 data_time.append(self.dt*n)
-                tracker.append(copy.deepcopy((self.X[3*self.Nx-1 +self.Nx//3, self.Ny//3].T).to("cpu")))
-                #data.append(copy.deepcopy((Z0*self.ex0.T).to("cpu")))
-                data.append(copy.deepcopy((self.X[3*self.Nx-1:4*self.Nx,:].T).to("cpu")))
+                data.append(copy.deepcopy((Z0*self.ex0.T).to("cpu")))
+                tracker.append(copy.deepcopy(self.X[self.Nx - 1 + self.Nx//3,self.Ny//3].to('cpu')))
+                #data.append(copy.deepcopy((self.X[self.Nx - 1:,:].T).to('cpu')))
             
         
-        return data_time, data
+        return data_time, data, tracker
     def animate_field(self, t, data):
         fig, ax = plt.subplots()
 
@@ -202,7 +178,7 @@ class UCHIE:
         
         # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
 
-        cax = ax.imshow(data[0],vmin = -1e-6, vmax = 1e-6)
+        cax = ax.imshow(data[0],vmin = -1e-13, vmax = 1e-12)
         ax.set_title("T = 0")
 
         def animate_frame(i):
@@ -219,15 +195,13 @@ class UCHIE:
 
 
 
-
-
-
 dx = 1e-10 # m
 dy = 0.125e-9# ms
 
 Sy = 0.8 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c0
 #print(dt)
+
 Nx = 600
 Ny = 600
 Nt = 500
@@ -245,14 +219,16 @@ ys = Ny*dy/2
 tc = dt*Nt/4
 #print(tc)
 sigma = tc/10
+
 source = Source(xs, ys, 1, tc, sigma)
 
 
 scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
 start_time = time.time()
 
-data_time, data = scheme.calculate(Nt, source)
+data_time, data, tracker = scheme.calculate(Nt, source)
 
+plt.plot(data_time, tracker)
 process = psutil.Process()
 print("Memory usage:", process.memory_info().rss) # print memory usage
 print("CPU usage:", process.cpu_percent()) # print CPU usage

@@ -5,7 +5,6 @@ import matplotlib.animation as animation
 import copy
 import pandas as pd
 
-from QM_coupledback_Anton import coupled 
 
 c0 = 299792458
 eps0 = 8.854 * 10**(-12)
@@ -129,10 +128,12 @@ class UCHIE:
         self.ex2old = self.ex2
         self.ex1old = self.ex1
 
-        self.ex2[:,1:-1] = self.ex2[:,1:-1] + self.dt/(self.dy)*(self.X[3*self.Nx-1:4*self.Nx,1:] - self.X[3*self.Nx-1:4*self.Nx,:-1])
-        self.ex1[:,1:-1] = self.Betay_plus_inv@(self.Betay_min@self.ex1[:,1:-1] + (self.ex2[:,1:-1] - self.ex2old[:,1:-1])/self.dt)
-        self.ex0[:,1:-1] = self.Betaz_plus_inv@(self.Betaz_min@self.ex0[:,1:-1] + self.Betax_plus@self.ex1[:,1:-1] - self.Betax_min@self.ex1old[:,1:-1])
+        ex2 = self.ex2[:,1:-1] + self.dt/(self.dy)*(self.X[3*self.Nx-1:4*self.Nx,1:] - self.X[3*self.Nx-1:4*self.Nx,:-1])
+        ex1 = self.Betay_plus_inv@(self.Betay_min@self.ex1[:,1:-1] + (ex2 - self.ex2old[:,1:-1])/self.dt)
+        self.ex0[:,1:-1] = self.Betaz_plus_inv@(self.Betaz_min@self.ex0[:,1:-1] + self.Betax_plus@ex1 - self.Betax_min@self.ex1old[:,1:-1])
         
+        self.ex2[:,1:-1] = ex2
+        self.ex1[:,1:-1] = ex1
         
   
 
@@ -162,8 +163,8 @@ class UCHIE:
             self.implicit(n, source)
             self.explicit()
             data_time.append(self.dt*n)
-            #data.append(copy.deepcopy((Z0*self.ex0.T)))
-            data.append((Z0*self.ex0.T))
+            data.append(copy.deepcopy((Z0*self.ex0.T)))
+            #data.append((Z0*self.ex0.T))
             #data.append(copy.deepcopy((self.X[3*self.Nx-1:4*self.Nx,:].T)))
             
         
