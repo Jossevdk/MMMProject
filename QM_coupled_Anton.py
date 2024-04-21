@@ -69,7 +69,7 @@ class coupled:
         self.order = order
         self.potential = potential
         self.source  = Source(self.xs, self.ys, self.J0, self.tc, self.sigma)
-        print(self.source.x)
+        #print(self.source.x)
         self.uchie = UCHIE(self.Nx, self.Ny, self.dx, self.dy, self.dt, pml_kmax = self.pml_kmax, pml_nl = self.pml_nl)
         #self.Ny = Ny, self.dy = dy, self.dt = dt, self.hbar = hbar = self.m = m, self.q = q,
 
@@ -102,7 +102,6 @@ class coupled:
     ### Update ###
     def update(self, PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, n,order,N, Efield):
         #E = efield.generate((n)*dt)*np.ones(Ny)
-        
         E = copy.deepcopy(Efield[2*Nx//4,:])
         Eo = E
         print(E[Ny//2])
@@ -153,10 +152,15 @@ class coupled:
 
         
 
-        for n in range(1, Nt):
-            Eold = E
-            Efield = 5*1e11*self.uchie.Update(n,self.source)
-            E = copy.deepcopy(Efield[2*Nx//4,:])
+        for n in range(0, Nt):
+            if n % 100 ==0 :
+
+
+                Eold = E
+                Efield = 5*1e13*self.uchie.Update(n,self.source)
+                #E = copy.deepcopy(Efield[2*Nx//4,:])
+                E = Efield[2*Nx//4,:]
+                #print(Efield)
             
             #print((q*r*E-potential.V())[Ny//2 - 5: Ny//2 + 5])
             #print(np.max(E))
@@ -196,15 +200,16 @@ class coupled:
             dataIm.append(PsiIm)
             dataprob.append(prob)
             datacurr.append(J)
-            data.append(copy.deepcopy((Efield.T)))
+            #data.append(copy.deepcopy((Efield.T)))
+            data.append(Efield.T)
             #J in input for EM part
-        self.result = data_time, dataRe, dataIm, dataprob, datacurr
+        self.result = data_time, dataRe, dataIm, dataprob, datacurr, data
         return data_time, dataRe, dataIm, dataprob, datacurr, data
     
     def expvalues(self,dt, dy,  type):
         if self.result == None:
-            data_time, dataRe, dataIm, dataprob, datacurr = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, alpha,order,N)
-        else: data_time, dataRe, dataIm, dataprob, datacurr = self.result
+            data_time, dataRe, dataIm, dataprob, datacurr, data = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, alpha,order,N)
+        else: data_time, dataRe, dataIm, dataprob, datacurr , data = self.result
         if type == 'position':
             exp = []
             for el in dataprob:
@@ -251,8 +256,8 @@ class coupled:
             res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential,alpha,order,N)
         else:
             res = self.result
-        probsel = res[3]
-        #probsel = prob[::100]
+        prob = res[3]
+        probsel = prob[::100]
         plt.imshow(np.array(probsel).T)
         plt.show()
 
@@ -262,8 +267,8 @@ class coupled:
             res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential,alpha,order,N)
         else:
             res = self.result
-        probsel = res[3]
-        # probsel = prob[::100]
+        prob = res[3]
+        probsel = prob[::100]
         fig, ax = plt.subplots()
 
         # Create an empty plot object
@@ -295,22 +300,22 @@ class coupled:
         # ax.set_ylim(0, Ny*dy)
 
         label = "Field"
-        
+        datasel= data[::100]
         # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
 
-        cax = ax.imshow(data[0])
+        cax = ax.imshow(datasel[0])
         ax.set_title("T = 0")
         # Draw a vertical line at x = Nx/2
         ax.axvline(x=2*Nx//4, color='r')  # 'r' is the color red
 
         def animate_frame(i):
-            cax.set_array(data[i])
+            cax.set_array(datasel[i])
             ax.set_title("T = " + "{:.12f}".format(t[i]*1000) + "ms")
             return cax
 
         global anim
         
-        anim = animation.FuncAnimation(fig, animate_frame, frames = (len(data)), interval=20)
+        anim = animation.FuncAnimation(fig, animate_frame, frames = (len(datasel)), interval=20)
         plt.show()
 
 ##########################################################
@@ -323,7 +328,7 @@ dt = Sy*dy/c0
 
 Nx = 300
 Ny = 300
-Nt = 800
+Nt = 100000
 
 pml_nl = 10
 pml_kmax = 4
@@ -359,7 +364,7 @@ Sy = 1 # !Courant number, for stability this should be smaller than 1
 
 # Ny = 300
 # Nt =100
-N = 10000 #particles/m2
+N = 30000 #particles/m2
 
 
 omega = 50e12 #[rad/s]
@@ -400,4 +405,4 @@ qm.animate_field(res[0], res[5])
 # plt.show()
 
 
-#qm.heatmap(dy, dt, Ny, Nt,  hbar, m ,q ,potential,alpha,order,N)
+qm.heatmap(dy, dt, Ny, Nt,  hbar, m ,q ,potential,alpha,order,N)

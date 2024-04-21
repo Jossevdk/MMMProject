@@ -5,6 +5,8 @@ import matplotlib.animation as animation
 import copy
 import pandas as pd
 
+from QM_coupledback_Anton import coupled 
+
 c0 = 299792458
 eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
@@ -27,7 +29,7 @@ class Source:
     def J(self, t):
         #print(t)
         #return 10e7*np.cos(2*np.pi*2e7*t + 0.5)
-        return self.J0*np.exp(-(t-self.tc)**2/(2*self.sigma**2))*np.cos(10*t/self.tc)
+        return self.J0*np.exp(-(t-self.tc)**2/(2*self.sigma**2))#*np.cos(10*t/self.tc)
 
 
 
@@ -122,8 +124,10 @@ class UCHIE:
         self.Betaz_plus_inv = np.linalg.inv(np.eye(Nx+1)/self.dt)
 
     def explicit(self):
-        self.ex2old = copy.deepcopy(self.ex2)
-        self.ex1old = copy.deepcopy(self.ex1)
+        # self.ex2old = copy.deepcopy(self.ex2)
+        # self.ex1old = copy.deepcopy(self.ex1)
+        self.ex2old = self.ex2
+        self.ex1old = self.ex1
 
         self.ex2[:,1:-1] = self.ex2[:,1:-1] + self.dt/(self.dy)*(self.X[3*self.Nx-1:4*self.Nx,1:] - self.X[3*self.Nx-1:4*self.Nx,:-1])
         self.ex1[:,1:-1] = self.Betay_plus_inv@(self.Betay_min@self.ex1[:,1:-1] + (self.ex2[:,1:-1] - self.ex2old[:,1:-1])/self.dt)
@@ -134,7 +138,7 @@ class UCHIE:
 
     def implicit(self, n, source):
         S_ = np.zeros((self.Nx, self.Ny))
-        S_[int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)
+        S_[int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt)
 
         Y = np.vstack((np.zeros((self.Nx, self.Ny)),S_ + self.A2@(self.ex0[:, 1:] - self.ex0[:, :-1])/self.dy, np.zeros((self.Nx-1, self.Ny)), np.zeros((self.Nx+1, self.Ny)), np.zeros((self.Nx-1, self.Ny)) ))
         #S = np.zeros((5*self.Nx-1, self.Ny))
@@ -158,7 +162,8 @@ class UCHIE:
             self.implicit(n, source)
             self.explicit()
             data_time.append(self.dt*n)
-            data.append(copy.deepcopy((Z0*self.ex0.T)))
+            #data.append(copy.deepcopy((Z0*self.ex0.T)))
+            data.append((Z0*self.ex0.T))
             #data.append(copy.deepcopy((self.X[3*self.Nx-1:4*self.Nx,:].T)))
             
         
