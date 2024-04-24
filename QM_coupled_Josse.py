@@ -8,7 +8,7 @@ import time
 import psutil
 #For the QM part, we require a simple 1D FDTD scheme
 
-from uchie_FAST import Source, UCHIE
+from PML_uchie_torch import Source, UCHIE
 
 c0 = 299792458
 eps0 = 8.854 * 10**(-12)
@@ -16,8 +16,7 @@ mu0 = 4*np.pi * 10**(-7)
 
 Z0 = np.sqrt(mu0/eps0)
 
-global g
-g = True
+
 
 
 
@@ -156,7 +155,7 @@ class coupled:
         for n in range(0, Nt):
            
             Eold = E
-            Efield = 5*1e13*self.uchie.Update(n,self.source)
+            Efield = 5*1e16*self.uchie.Update(n,self.source)
             #E = copy.deepcopy(Efield[2*Nx//4,:])
             E = Efield[2*Nx//4,:]
             #print(Efield)
@@ -194,7 +193,7 @@ class coupled:
             # PsiReint[0]=0
             # PsiReint[-1] = 0
             # probability = PsiReint**2 + PsiIm**2
-            if n%10 == 0:
+            if n%200 == 0:
                 print(prob[Ny//2])
                 print(np.sum(prob))
                 # print(PsiIm[Ny//2])
@@ -309,7 +308,7 @@ class coupled:
         datasel= data
         # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
 
-        cax = ax.imshow(datasel[0],vmin = -1e-13, vmax = 1e-12)
+        cax = ax.imshow(datasel[0],vmin = -1e10, vmax = 1e10)
         ax.set_title("T = 0")
         # Draw a vertical line at x = Nx/2
         ax.axvline(x=2*Nx//4, color='r')  # 'r' is the color red
@@ -324,29 +323,29 @@ class coupled:
         anim = animation.FuncAnimation(fig, animate_frame, frames = (len(datasel)), interval=20)
         plt.show()
 
-##########################################################
 dx = 1e-10 # m
 dy = 0.125e-9# ms
 
 Sy = 0.8 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c0
 #print(dt)
+Nx = 400
+Ny = 400
+Nt = 15000
 
-Nx = 1000
-Ny = 1000
-Nt = 400
-
-pml_nl = 50
-pml_kmax = 20
+pml_nl = 20
+pml_kmax = 4
 eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
 Z0 = np.sqrt(mu0/eps0)
 
-J0 = 10e7
-xs = Nx*dx/3
+
+
+J0 = 1e5
+xs = Nx*dx/2.5
 ys = Ny*dy/2
 
-tc = dt*Nt/4
+tc = dt*Nt/2
 #print(tc)
 sigma = tc/10
 
@@ -358,17 +357,7 @@ hbar = ct.hbar #J⋅s
 m = ct.electron_mass
 q = ct.elementary_charge 
 
-#dy = 0.125*10**(-9)
-# dy = 0.1
-# dy = 0.1
-#assert(dy==dy2) # m
-c = ct.speed_of_light # m/s
-Sy = 1 # !Courant number, for stability this should be smaller than 1
-#dt = 0.1*dy/c
 
-
-# Ny = 300
-# Nt =100
 N = 30000 #particles/m2
 
 

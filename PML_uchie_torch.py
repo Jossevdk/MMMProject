@@ -157,16 +157,16 @@ class UCHIE:
         #S_[int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)
         #Y = th.vstack((th.zeros((self.Nx, self.Ny)),S_ + th.mm(self.A2, (self.ex0[:, 1:] - self.ex0[:, :-1]))/self.dy, th.zeros((self.Nx-1, self.Ny)), th.zeros((self.Nx+1, self.Ny)), th.zeros((self.Nx-1, self.Ny)) ))
         self.Y[self.Nx:2*self.Nx , :] =  th.mm(self.A2, (self.ex0[:, 1:] - self.ex0[:, :-1]))/self.dy
-        #self.Y[self.Nx + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)
+        self.Y[self.Nx + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)
         #S = np.zeros((5*self.Nx-1, self.Ny))
         #S[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
         #self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] += -2000*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
         
         self.X = th.mm(self.M_N, self.X )+ th.mm(self.M_inv, self.Y)
-        self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] +=   -2000000000000000*(1/Z0)*source.J(n*self.dt/c0)
-        self.X[self.Nx-1 + int(source.x/self.dx), 1+int(source.y/self.dy)] += -2000000000000000*(1/Z0)*source.J(n*self.dt/c0)
+        #self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] +=   -2000000000000000*(1/Z0)*source.J(n*self.dt/c0)
+        #self.X[self.Nx-1 + int(source.x/self.dx), 1+int(source.y/self.dy)] += -2000000000000000*(1/Z0)*source.J(n*self.dt/c0)
         
-        print(self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)])
+        #print(self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)])
         # print(np.shape(self.X))
 
     def Update(self,n, source):
@@ -202,7 +202,7 @@ class UCHIE:
         
         # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
 
-        cax = ax.imshow(data[0],vmin = -1e-6, vmax = 1e-6)
+        cax = ax.imshow(data[0],vmin = -1e-16, vmax = 1e-16)
         ax.set_title("T = 0")
 
         def animate_frame(i):
@@ -222,47 +222,47 @@ class UCHIE:
 
 
 
-dx = 1e-10 # m
-dy = 0.125e-9# ms
+# dx = 1e-10 # m
+# dy = 0.125e-9# ms
 
-Sy = 0.8 # !Courant number, for stability this should be smaller than 1
-dt = Sy*dy/c0
-#print(dt)
-Nx = 600
-Ny = 600
-Nt = 500
+# Sy = 0.8 # !Courant number, for stability this should be smaller than 1
+# dt = Sy*dy/c0
+# #print(dt)
+# Nx = 600
+# Ny = 600
+# Nt = 500
 
-pml_nl = 1
-pml_kmax = 1
-eps0 = 8.854 * 10**(-12)
-mu0 = 4*np.pi * 10**(-7)
-Z0 = np.sqrt(mu0/eps0)
-
-
-xs = Nx*dx/2 
-ys = Ny*dy/2
-
-tc = dt*Nt/4
-#print(tc)
-sigma = tc/10
-source = Source(xs, ys, 1, tc, sigma)
+# pml_nl = 20
+# pml_kmax = 4
+# eps0 = 8.854 * 10**(-12)
+# mu0 = 4*np.pi * 10**(-7)
+# Z0 = np.sqrt(mu0/eps0)
 
 
-scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
-start_time = time.time()
+# xs = Nx*dx/2 
+# ys = Ny*dy/2
 
-data_time, data = scheme.calculate(Nt, source)
-
-process = psutil.Process()
-print("Memory usage:", process.memory_info().rss) # print memory usage
-print("CPU usage:", process.cpu_percent()) # print CPU usage
-
-end_time = time.time()
+# tc = dt*Nt/4
+# #print(tc)
+# sigma = tc/10
+# source = Source(xs, ys, 1, tc, sigma)
 
 
-print("Execution time: ", end_time - start_time, "seconds")
+# scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
+# start_time = time.time()
 
-scheme.animate_field(data_time, data)
+# data_time, data = scheme.calculate(Nt, source)
+
+# process = psutil.Process()
+# print("Memory usage:", process.memory_info().rss) # print memory usage
+# print("CPU usage:", process.cpu_percent()) # print CPU usage
+
+# end_time = time.time()
+
+
+# print("Execution time: ", end_time - start_time, "seconds")
+
+# scheme.animate_field(data_time, data)
          
     
 

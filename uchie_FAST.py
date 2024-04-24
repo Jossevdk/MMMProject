@@ -157,7 +157,7 @@ class UCHIE:
         for n in range(0, Nt):
             self.implicit(n, source)
             self.explicit()
-            if n % 10 == 0:
+            if n % 1 == 0:
                 print(n)
                 data_time.append(self.dt*n)
                 data.append(copy.deepcopy((Z0*self.ex0.T).to("cpu")))
@@ -178,7 +178,7 @@ class UCHIE:
         
         # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
 
-        cax = ax.imshow(data[0],vmin = -1e-13, vmax = 1e-12)
+        cax = ax.imshow(data[0],vmin = -1e-13, vmax = 1e-13)
         ax.set_title("T = 0")
 
         def animate_frame(i):
@@ -204,7 +204,7 @@ dt = Sy*dy/c0
 
 Nx = 600
 Ny = 600
-Nt = 500
+Nt = 600
 
 pml_nl = 1
 pml_kmax = 1
@@ -218,7 +218,7 @@ ys = Ny*dy/2
 
 tc = dt*Nt/4
 #print(tc)
-sigma = tc/10
+sigma = tc/12
 
 source = Source(xs, ys, 1, tc, sigma)
 
