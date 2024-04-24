@@ -222,47 +222,47 @@ class UCHIE:
 
 
 
-# dx = 1e-10 # m
-# dy = 0.125e-9# ms
+dx = 1e-10 # m
+dy = 0.125e-9# ms
 
-# Sy = 0.8 # !Courant number, for stability this should be smaller than 1
-# dt = Sy*dy/c0
-# #print(dt)
-# Nx = 600
-# Ny = 600
-# Nt = 500
+Sy = 0.8 # !Courant number, for stability this should be smaller than 1
+dt = Sy*dy/c0
+#print(dt)
+Nx = 600
+Ny = 600
+Nt = 500
 
-# pml_nl = 20
-# pml_kmax = 4
-# eps0 = 8.854 * 10**(-12)
-# mu0 = 4*np.pi * 10**(-7)
-# Z0 = np.sqrt(mu0/eps0)
-
-
-# xs = Nx*dx/2 
-# ys = Ny*dy/2
-
-# tc = dt*Nt/4
-# #print(tc)
-# sigma = tc/10
-# source = Source(xs, ys, 1, tc, sigma)
+pml_nl = 20
+pml_kmax = 4
+eps0 = 8.854 * 10**(-12)
+mu0 = 4*np.pi * 10**(-7)
+Z0 = np.sqrt(mu0/eps0)
 
 
-# scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
-# start_time = time.time()
+xs = Nx*dx/2 
+ys = Ny*dy/2
 
-# data_time, data = scheme.calculate(Nt, source)
-
-# process = psutil.Process()
-# print("Memory usage:", process.memory_info().rss) # print memory usage
-# print("CPU usage:", process.cpu_percent()) # print CPU usage
-
-# end_time = time.time()
+tc = dt*Nt/4
+#print(tc)
+sigma = tc/10
+source = Source(xs, ys, 1, tc, sigma)
 
 
-# print("Execution time: ", end_time - start_time, "seconds")
+scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
+start_time = time.time()
 
-# scheme.animate_field(data_time, data)
+data_time, data = scheme.calculate(Nt, source)
+
+process = psutil.Process()
+print("Memory usage:", process.memory_info().rss) # print memory usage
+print("CPU usage:", process.cpu_percent()) # print CPU usage
+
+end_time = time.time()
+
+
+print("Execution time: ", end_time - start_time, "seconds")
+
+scheme.animate_field(data_time, data)
          
     
 

@@ -31,6 +31,31 @@ Z0 = np.sqrt(mu0/eps0)
 
 
 ### Electric field ###
+class ElectricField:
+    def __init__(self, field_type, dt, amplitude=1.0):
+        self.field_type = field_type
+        self.amplitude = amplitude
+        self.dt = dt
+
+    def generate(self, t, **kwargs):
+        if self.field_type == 'gaussian':
+            return self._gaussian(t, **kwargs)
+        elif self.field_type == 'sinusoidal':
+            return self._sinusoidal(t, **kwargs)
+        
+        #add a third case where these is coupling with the EM part
+        else:
+            raise ValueError(f"Unknown field type: {self.field_type}")
+
+    def _gaussian(self, t, t0=0, sigma=1):
+        t0 = 10000*self.dt
+        return self.amplitude * np.exp(-0.5 * ((t - t0) / sigma) ** 2)
+
+    def _sinusoidal(self, t, omega=1):
+        t0= 1000*self.dt
+        #add damping function
+        return self.amplitude * np.sin(omega * t)*2/np.pi* np.arctan(t/t0)
+
 
 
 
