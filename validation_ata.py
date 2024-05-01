@@ -2,12 +2,14 @@ import numpy as np
 import matplotlib.pyplot as plt
 import copy
 import matplotlib.animation as animation 
-import copy
 import pandas as pd
 from scipy.sparse import csr_matrix
 import torch as th
 import time
 import psutil
+import numpy.fft as ft
+from scipy.special import hankel2
+import scipy.constants as ct
 
 
 c0 = 299792458
@@ -18,6 +20,25 @@ Z0 = np.sqrt(mu0/eps0)
 
 
 device = th.device("cuda" if th.cuda.is_available() else "cpu")
+
+
+
+
+### Recorders ###
+class Recorder:
+    def __init__(self, x, y, field):
+        self.x = x
+        self.y = y
+        self.data = []          # data of the field will be added in this list
+        self.data_time = []     # data of the time will be added in this list
+        self.field = field      # type of field int 0, 1 or 2 for e_x, e_y, and h_z
+
+    # adding the measurement of the field to the data
+    def save_data(self, field, t):
+        self.data.append(field) # appending a measurement to the list
+        self.data_time.append(t)
+
+
 
 ### Source ###
 class Source:
@@ -33,13 +54,16 @@ class Source:
         #print(t)
         #return 10e7*np.cos(2*np.pi*2e7*t + 0.5)
         #print(t, self.tc, self.sigma)
-        return self.J0*np.exp(-(t-self.tc)**2/(2*self.sigma**2))
+        return self.J0*np.exp(-(t-self.tc)**2.0/(2*self.sigma**2.0))
+    
+    def J_abs(self, omega):
+        return self.J0*np.sqrt(2*np.pi)*self.sigma*np.exp(-self.sigma**2*omega**2/2)
 
 
 
 #### UCHIE ####
 class UCHIE:
-    def __init__(self, Nx, Ny, dx, dy, dt, pml_kmax = None, pml_nl = None):
+    def __init__(self, Nx, Ny, dx, dy, dt, pml_kmax = None, pml_nl = None, recorders=None):
         #dx = 0.005 # m
         #dy = 0.005
         #dt = 0.0000000001
@@ -57,8 +81,10 @@ class UCHIE:
         self.dx = dx
         self.dy = dy
         self.dt = c0*dt
-        self.X = th.zeros((5*Nx-1, Ny)).to(device) # the first Nx+1 rows are the Ey fields, and the others the Bz fields
-        self.Y = th.zeros((5*Nx-1, Ny)).to(device)
+        self.X = th.zeros((2*Nx, Ny)).to(device) # the first Nx+1 rows are the Ey fields, and the others the Bz fields
+        self.Y = th.zeros((2*Nx, Ny)).to(device)
+
+        self.recorders = recorders
 
         A1 = th.zeros((Nx, Nx-1))
         A1[th.arange(Nx-1), th.arange(Nx-1)] = 1
@@ -93,62 +119,40 @@ class UCHIE:
         sigma_tot_E = th.hstack((pml_sigmax.flip(dims=[0]), th.zeros(Nx - 1 - 2*pml_nl), pml_sigmax))
         k_tot_H = th.hstack((pml_kx.flip(dims=[0]), th.ones(Nx+1 - 2*pml_nl), pml_kx))
         sigma_tot_H = th.hstack((pml_sigmax.flip(dims=[0]), th.zeros(Nx + 1 - 2*pml_nl), pml_sigmax))
-        print(k_tot_E, sigma_tot_E, k_tot_H, sigma_tot_H)
         # pml_kymax = 4
         # pml_sigmay_max = (m+1)/(150*np.pi*dy)
         # pml_ky = np.array([1 + (pml_kymax -1)*(i/pml_nl)**m for i in range(0, pml_nl)])
         # pml_sigmay = np.array([pml_sigmay_max*(i/pml_nl)**m for i in range(0, pml_nl)])
         #print(np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2))
-        M1 = th.hstack((A1/self.dt,                th.zeros((Nx, Nx+1)),                          th.zeros((Nx, Nx-1)),     D2,                       th.zeros((Nx, Nx-1))))
-        M2 = th.hstack((th.zeros((Nx, Nx-1)),      th.mm(A2,th.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2)),  th.zeros((Nx, Nx-1)),     th.zeros((Nx, Nx+1)),     D1))
-        M3 = th.hstack((-I_E/self.dt,              th.zeros((Nx-1, Nx+1)),                        I_E/self.dt,              th.zeros((Nx-1, Nx+1)),   th.zeros((Nx-1, Nx-1))))
-        M4 = th.hstack((th.zeros((Nx + 1, Nx-1)),  -I_H/self.dt,                                  th.zeros((Nx + 1, Nx-1)), I_H/self.dt,              th.zeros((Nx+1, Nx-1))))
-        M5 = th.hstack((th.zeros((Nx - 1, Nx-1)),  th.zeros((Nx - 1, Nx+1)),                      -I_E/self.dt,             th.zeros((Nx - 1, Nx+1)), th.diag(k_tot_E/self.dt+Z0*sigma_tot_E/2)))
         
-        N1 = th.hstack((A1/self.dt,                th.zeros((Nx, Nx+1)),                          th.zeros((Nx, Nx-1)),    -D2,                       th.zeros((Nx, Nx-1))))
-        N2 = th.hstack((th.zeros((Nx, Nx-1)),      th.mm(A2,th.diag(k_tot_H/self.dt-Z0*sigma_tot_H/2)),  th.zeros((Nx, Nx-1)),     th.zeros((Nx, Nx+1)),     -D1))
-        N3 = th.hstack((-I_E/self.dt,              th.zeros((Nx-1, Nx+1)),                        I_E/self.dt,              th.zeros((Nx-1, Nx+1)),   th.zeros((Nx-1, Nx-1))))
-        N4 = th.hstack((th.zeros((Nx + 1, Nx-1)),  -I_H/self.dt,                                  th.zeros((Nx + 1, Nx-1)), I_H/self.dt,              th.zeros((Nx+1, Nx-1))))
-        N5 = th.hstack((th.zeros((Nx - 1, Nx-1)),  th.zeros((Nx - 1, Nx+1)),                      -I_E/self.dt,             th.zeros((Nx - 1, Nx+1)), th.diag(k_tot_E/self.dt-Z0*sigma_tot_E/2)))
-        
-        M = th.vstack((M1, M2, M3, M4, M5))
+        M_midden1 = th.hstack((A1/self.dt, D2))
+        M_midden2 = th.hstack((D1, A2/self.dt))
+
+        M = th.vstack((M_midden1, M_midden2)).to(device)
+
+        N_midden1 = th.hstack((A1/self.dt, -D2))
+        N_midden2 = th.hstack((-D1, A2/self.dt))
+
+        self.N = th.vstack((N_midden1, N_midden2)).to(device)
+
+    
         
         self.M_inv = th.linalg.inv(M).to(device)
-        N = th.vstack((N1, N2, N3, N4, N5)).to(device)
-        self.M_N = th.mm(self.M_inv,N).to(device)
+        
+        self.M_N = th.mm(self.M_inv,self.N)
 
-     
 
 
         #explicit part
-        self.ex2 = th.zeros((Nx+1, Ny+1)).to(device)
-        self.ex2old = th.zeros((Nx+1, Ny+1)).to(device)
-        self.ex1 = th.zeros((Nx+1, Ny+1)).to(device)
-        self.ex1old = th.zeros((Nx+1, Ny+1)).to(device)
+        
         self.ex0 = th.zeros((Nx+1, Ny+1)).to(device)
 
 
         
 
-        self.Betax_min = th.diag(k_tot_H/self.dt-Z0*sigma_tot_H/2).to(device)
-        self.Betay_min = (th.eye(Nx+1)/self.dt).to(device)
-        self.Betaz_min = (th.eye(Nx+1)/self.dt).to(device)   
-        self.Betax_plus = th.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2).to(device)
-        self.Betay_plus_inv = th.inverse(th.eye(Nx+1)/self.dt).to(device)
-        self.Betaz_plus_inv = th.inverse(th.eye(Nx+1)/self.dt).to(device)
-        
-        self.Betay = th.mm(self.Betay_plus_inv, self.Betay_min)
-        self.Betaz = th.mm(self.Betaz_plus_inv, self.Betaz_min)
-        self.Betazxplus = th.mm(self.Betaz_plus_inv, self.Betax_plus)
-        self.Betazxmin = th.mm(self.Betaz_plus_inv, self.Betax_min)
-
     def explicit(self):
-        self.ex2old = copy.deepcopy(self.ex2)
-        self.ex1old = copy.deepcopy(self.ex1)
-
-        self.ex2[:,1:-1] = self.ex2[:,1:-1] + self.dt/(self.dy)*(self.X[3*self.Nx-1:4*self.Nx,1:] - self.X[3*self.Nx-1:4*self.Nx,:-1])
-        self.ex1[:,1:-1] = th.mm(self.Betay_plus_inv, th.mm(self.Betay_min, self.ex1[:,1:-1]) + (self.ex2[:,1:-1] - self.ex2old[:,1:-1])/self.dt)
-        self.ex0[:,1:-1] = th.mm(self.Betaz_plus_inv, th.mm(self.Betaz_min, self.ex0[:,1:-1]) + th.mm(self.Betax_plus, self.ex1[:,1:-1]) - th.mm(self.Betax_min, self.ex1old[:,1:-1]))
+        
+        self.ex0[:,1:-1] = self.ex0[:,1:-1] + self.dt/(self.dy)*(self.X[self.Nx-1:2*self.Nx,1:] - self.X[self.Nx-1:2*self.Nx,:-1])
         
   
 
@@ -160,19 +164,16 @@ class UCHIE:
         self.Y[self.Nx + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)
         #S = np.zeros((5*self.Nx-1, self.Ny))
         #S[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
-        #self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] += -2000*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
+        #self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
         
         self.X = th.mm(self.M_N, self.X )+ th.mm(self.M_inv, self.Y)
-        #self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] +=   -2000000000000000*(1/Z0)*source.J(n*self.dt/c0)
-        #self.X[self.Nx-1 + int(source.x/self.dx), 1+int(source.y/self.dy)] += -2000000000000000*(1/Z0)*source.J(n*self.dt/c0)
         
-        #print(self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)])
         # print(np.shape(self.X))
 
     def Update(self,n, source):
         self.implicit(n, source)
         self.explicit()
-        return Z0*self.X[4*self.Nx:5*self.Nx-1,:].to("cpu").numpy()
+        return Z0*self.X[:self.Nx-1,:].to("cpu").numpy()
 
     def calculate(self, Nt, source):
         data_time = []
@@ -182,14 +183,19 @@ class UCHIE:
         for n in range(0, Nt):
             self.implicit(n, source)
             self.explicit()
-            if n % 5 == 0:
+            if n % 1 == 0:
+                print(n)
                 data_time.append(self.dt*n)
-                tracker.append(copy.deepcopy((self.X[3*self.Nx-1 +self.Nx//3, self.Ny//3].T).to("cpu")))
-                #data.append(copy.deepcopy((Z0*self.ex0.T).to("cpu")))
-                data.append(copy.deepcopy((self.X[3*self.Nx-1:4*self.Nx,:].T).to("cpu")))
+                data.append(copy.deepcopy((Z0*self.ex0.T).to("cpu")))
+                tracker.append(copy.deepcopy(self.X[self.Nx - 1 + self.Nx//3,self.Ny//3].to('cpu')))
+                #data.append(copy.deepcopy((self.X[self.Nx - 1:,:].T).to('cpu')))
+
+                for recorder in self.recorders:
+                    if recorder.field == 2:
+                        recorder.save_data(self.X[self.Nx-1 + int(round(recorder.x/self.dx)), int(round(recorder.y/self.dy))], n*self.dt)
             
         
-        return data_time, data
+        return data_time, data, tracker
     def animate_field(self, t, data):
         fig, ax = plt.subplots()
 
@@ -202,7 +208,7 @@ class UCHIE:
         
         # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
 
-        cax = ax.imshow(data[0],vmin = -1e-16, vmax = 1e-16)
+        cax = ax.imshow(data[0],vmin = -1e-13, vmax = 1e-13)
         ax.set_title("T = 0")
 
         def animate_frame(i):
@@ -214,11 +220,45 @@ class UCHIE:
         
         anim = animation.FuncAnimation(fig, animate_frame, frames = (len(data)), interval=20)
         plt.show()
+    
 
+    # TODO
+    def validation(self, recorder, source, dx, dy):
+        x = recorder.x
+        y = recorder.y
+        sigma = source.sigma
 
+        plt.plot(recorder.data_time, recorder.data)
+        plt.show()
+        plt.close()
 
+        omega_max = 3/sigma
+        Hz = recorder.data
 
+        omega = 2*np.pi*ft.rfftfreq(10000, self.dt)  # Get the frequency
+        Hz_freq = ft.rfft(Hz, 10000)
 
+        width = next((i for i, val in enumerate(omega) if val > omega_max), len(omega))  # Find index where omega > omega_max
+
+        omega = omega[:width] 
+        Hz_freq = Hz_freq[:width]
+
+        k0 = omega/ct.c
+        z = k0*np.sqrt((x - source.x)**2 + (y - source.y)**2)
+
+        Hz_ana = -source.J0*omega*ct.mu_0/4 * hankel2(0, z)
+
+        plt.plot(omega, np.abs(Hz_freq))
+        plt.plot(omega, np.abs(Hz_ana))
+        plt.title("Validation magnetic field at location (" + "{:.6g}".format(x) + "m, " + "{:.6g}".format(y) + "m)")
+        plt.xlabel("frequency $\omega$ [Hz]")
+        plt.ylabel("$H_{z}$ [A/m]")
+        plt.legend(["measured", "theoretical"])
+        
+        plt.show()
+        plt.close()
+
+        
 
 
 
@@ -228,12 +268,13 @@ dy = 0.125e-9# ms
 Sy = 0.8 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c0
 #print(dt)
-Nx = 600
-Ny = 600
-Nt = 500
 
-pml_nl = 20
-pml_kmax = 4
+Nx = 400
+Ny = 400
+Nt = 300
+
+pml_nl = 1
+pml_kmax = 1
 eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
 Z0 = np.sqrt(mu0/eps0)
@@ -244,15 +285,19 @@ ys = Ny*dy/2
 
 tc = dt*Nt/4
 #print(tc)
-sigma = tc/10
+sigma = tc/12
+
+recorder1 = Recorder(0.75*Nx*dx, 0.5*Ny*dy, 2)
+recorders = [recorder1]
 source = Source(xs, ys, 1, tc, sigma)
 
 
-scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl)
+scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl, recorders = recorders)
 start_time = time.time()
 
-data_time, data = scheme.calculate(Nt, source)
+data_time, data, tracker = scheme.calculate(Nt, source)
 
+plt.plot(data_time, tracker)
 process = psutil.Process()
 print("Memory usage:", process.memory_info().rss) # print memory usage
 print("CPU usage:", process.cpu_percent()) # print CPU usage
@@ -263,8 +308,4 @@ end_time = time.time()
 print("Execution time: ", end_time - start_time, "seconds")
 
 scheme.animate_field(data_time, data)
-         
-    
-
-    
-
+scheme.validation(recorder1, source, dx, dy)
