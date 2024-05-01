@@ -4,6 +4,7 @@ import copy
 import matplotlib.animation as animation 
 import copy
 import pandas as pd
+import scipy.sparse as sp
 import time
 import psutil
 
@@ -16,6 +17,45 @@ Z0 = np.sqrt(mu0/eps0)
 
 global g
 g = True
+
+
+
+
+def lu_full_pivot(A):
+    n = A.shape[0]
+    P = np.eye(n)  # Permutation matrix for row swaps
+    Q = np.eye(n)  # Permutation matrix for column swaps
+    U = A.copy()
+    L = np.eye(n)
+    
+    for k in range(n):
+        # Find the pivot index
+        max_index = np.unravel_index(np.argmax(np.abs(U[k:, k:])), U[k:, k:].shape)
+        pivot_row = max_index[0] + k
+        pivot_col = max_index[1] + k
+        
+        # Swap rows in U and P
+        U[[k, pivot_row], k:] = U[[pivot_row, k], k:]
+        P[[k, pivot_row], :] = P[[pivot_row, k], :]
+        
+        # Swap columns in U and Q
+        U[:, [k, pivot_col]] = U[:, [pivot_col, k]]
+        Q[:, [k, pivot_col]] = Q[:, [pivot_col, k]]
+        
+        # Swap rows in L to maintain lower triangular form, only for columns before k
+        if k > 0:
+            L[[k, pivot_row], :k] = L[[pivot_row, k], :k]
+        
+        # Compute multipliers and eliminate below
+        for j in range(k+1, n):
+            L[j, k] = U[j, k] / U[k, k]
+            U[j, k:] -= L[j, k] * U[k, k:]
+    
+    return P, L, U, Q
+
+
+
+
 
 ### Source ###
 class Source:
@@ -73,6 +113,23 @@ class UCHIE:
         np.fill_diagonal(D2[:,1:], 1/dx)
         I_E = np.eye(Nx - 1)
         I_H = np.eye(Nx + 1)
+
+        C = np.zeros((2*Nx, 2*Nx))
+        np.fill_diagonal(C[:-1, 1:], 1)
+        C[Nx*2-1, 0] = 1
+
+
+
+        R = np.zeros((2 * Nx, 2 * Nx)) 
+        R[0, Nx-1] = 1 
+        for k in range(1, Nx):
+            R[2*k-1 , k-1] = 1  
+            R[2*k, Nx + k -1] = 1 
+        R[2*Nx-1, 2*Nx-1] = 1   
+
+    
+
+
         m = 10
         pml_kxmax = pml_kmax
         pml_sigmax_max = (m+1)/(150*np.pi*dx)
@@ -90,23 +147,42 @@ class UCHIE:
         # pml_ky = np.array([1 + (pml_kymax -1)*(i/pml_nl)**m for i in range(0, pml_nl)])
         # pml_sigmay = np.array([pml_sigmay_max*(i/pml_nl)**m for i in range(0, pml_nl)])
         #print(np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2))
-        M1 = np.hstack((A1/self.dt,                np.zeros((Nx, Nx+1)),                          np.zeros((Nx, Nx-1)),     D2,                       np.zeros((Nx, Nx-1))))
-        M2 = np.hstack((np.zeros((Nx, Nx-1)),      A2@np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2),  np.zeros((Nx, Nx-1)),     np.zeros((Nx, Nx+1)),     D1))
-        M3 = np.hstack((-I_E/self.dt,              np.zeros((Nx-1, Nx+1)),                        I_E/self.dt,              np.zeros((Nx-1, Nx+1)),   np.zeros((Nx-1, Nx-1))))
-        M4 = np.hstack((np.zeros((Nx + 1, Nx-1)),  -I_H/self.dt,                                  np.zeros((Nx + 1, Nx-1)), I_H/self.dt,              np.zeros((Nx+1, Nx-1))))
-        M5 = np.hstack((np.zeros((Nx - 1, Nx-1)),  np.zeros((Nx - 1, Nx+1)),                      -I_E/self.dt,             np.zeros((Nx - 1, Nx+1)), np.diag(k_tot_E/self.dt+Z0*sigma_tot_E/2)))
+       
+        M11 = np.vstack((np.hstack((A1/self.dt,                np.zeros((Nx, Nx+1)))), \
+                         np.hstack((np.zeros((Nx, Nx-1)), A2@np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2)))))
+        M12 = np.vstack((np.hstack((np.zeros((Nx, Nx-1)), D2, np.zeros((Nx, Nx-1)))), \
+                         np.hstack((np.zeros((Nx, Nx-1)), np.zeros((Nx, Nx+1)), D1))))
+        M21 = np.vstack((np.hstack((-I_E/self.dt,               np.zeros((Nx-1, Nx+1)))), \
+                         np.hstack((np.zeros((Nx+1, Nx-1)),   -I_H/self.dt)), \
+                         np.hstack((np.zeros((Nx-1, Nx-1)),    np.zeros((Nx-1, Nx+1))))))
+        M22 = np.vstack((np.hstack((I_E/self.dt,               np.zeros((Nx-1, Nx+1)), np.zeros((Nx-1, Nx-1)))), \
+                            np.hstack((np.zeros((Nx+1, Nx-1)),   I_H/self.dt, np.zeros((Nx+1, Nx-1)))), \
+                            np.hstack((-I_E/self.dt,    np.zeros((Nx-1, Nx+1)), np.diag(k_tot_E/self.dt+Z0*sigma_tot_E/2)))))
         
+        self.M22_inv = sp.csr_matrix(np.linalg.inv(M22))
+        self.M12_M22inv = sp.csr_matrix(M12@self.M22_inv)
+        self.M22inv_M21 = sp.csr_matrix(self.M22_inv@M21)
+        print(self.M22_inv.nnz)
+
+        S = np.vstack((np.hstack((A1/self.dt,                D2,)), \
+                       np.hstack((D1@np.linalg.inv(np.diag(k_tot_E/self.dt+Z0*sigma_tot_E/2))/self.dt, A2@np.diag(k_tot_H/self.dt+Z0*sigma_tot_H/2)))))
+       
+        B = C@R@S@(R.T)
+
+        P, L, U, Q = lu_full_pivot(B)
+       
+
+        self.RQULPCR = sp.csr_matrix((R.T)@Q@np.linalg.inv(U)@np.linalg.inv(L)@P@C@R)
+
+
         N1 = np.hstack((A1/self.dt,                np.zeros((Nx, Nx+1)),                          np.zeros((Nx, Nx-1)),    -D2,                       np.zeros((Nx, Nx-1))))
         N2 = np.hstack((np.zeros((Nx, Nx-1)),      A2@np.diag(k_tot_H/self.dt-Z0*sigma_tot_H/2),  np.zeros((Nx, Nx-1)),     np.zeros((Nx, Nx+1)),     -D1))
         N3 = np.hstack((-I_E/self.dt,              np.zeros((Nx-1, Nx+1)),                        I_E/self.dt,              np.zeros((Nx-1, Nx+1)),   np.zeros((Nx-1, Nx-1))))
         N4 = np.hstack((np.zeros((Nx + 1, Nx-1)),  -I_H/self.dt,                                  np.zeros((Nx + 1, Nx-1)), I_H/self.dt,              np.zeros((Nx+1, Nx-1))))
         N5 = np.hstack((np.zeros((Nx - 1, Nx-1)),  np.zeros((Nx - 1, Nx+1)),                      -I_E/self.dt,             np.zeros((Nx - 1, Nx+1)), np.diag(k_tot_E/self.dt-Z0*sigma_tot_E/2)))
         
-        M = np.vstack((M1, M2, M3, M4, M5))
-        
-        self.M_inv = np.linalg.inv(M)
-        self.N = np.vstack((N1, N2, N3, N4, N5))
-        self.M_N = self.M_inv@self.N
+        self.N = sp.csr_matrix(np.vstack((N1, N2, N3, N4, N5)))    
+
 
         #explicit part
         self.ex2 = np.zeros((Nx+1, Ny+1))
@@ -117,7 +193,6 @@ class UCHIE:
 
         self.Y =   np.vstack((np.zeros((self.Nx, self.Ny)),self.A2@(self.ex0[:, 1:] - self.ex0[:, :-1])/self.dy, np.zeros((self.Nx-1, self.Ny)), np.zeros((self.Nx+1, self.Ny)), np.zeros((self.Nx-1, self.Ny)) ))
          
-        
 
         self.Betax_min = np.diag(k_tot_H/self.dt-Z0*sigma_tot_H/2)
         self.Betay_min = np.eye(Nx+1)/self.dt
@@ -144,9 +219,14 @@ class UCHIE:
     def implicit(self, n, source):
         self.Y[self.Nx:2*self.Nx , :] = self.A2@(self.ex0[:, 1:] - self.ex0[:, :-1])/self.dy
         self.Y[self.Nx + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)
-        
-        self.X = self.M_N@self.X + self.M_inv@(self.Y)
-      
+
+        rhs = self.N@self.X + self.Y
+        v1 = rhs[:2*self.Nx, :]
+        v2 = rhs[2*self.Nx:, :]
+        p = v1 - self.M12_M22inv@v2
+        self.X[:2*self.Nx, :] = self.RQULPCR@p
+        self.X[2*self.Nx:, :] = self.M22_inv@v2 - self.M22inv_M21@self.X[:2*self.Nx, :]
+
     def Update(self,n, source):
         self.implicit(n, source)
         self.explicit()
@@ -192,6 +272,7 @@ class UCHIE:
 
 
 
+
 dx = 1e-10 # m
 dy = 0.125e-9# ms
 
@@ -233,3 +314,4 @@ end_time = time.time()
 print("Execution time: ", end_time - start_time, "seconds")
 
 scheme.animate_field(data_time, data)
+         
