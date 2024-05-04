@@ -98,7 +98,7 @@ class QM:
     def update(self, PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N):
         #E = efield.generate((n)*dt)*np.ones(Ny)
       
-        E = efield.generate((n)*dt)*np.ones(Ny)
+        E = efield.generate((n)*dt, omega = omegaHO)*np.ones(Ny)
 
         #E= 0
         PsiReo = PsiRe
@@ -108,7 +108,7 @@ class QM:
         PsiRe[0] = 0
         PsiRe[-1] = 0
         #E = efield.generate((n+1/2)*dt)*np.ones(Ny)
-        E = efield.generate((n+1/2)*dt)*np.ones(Ny)
+        E = efield.generate((n+1/2)*dt, omega = omegaHO)*np.ones(Ny)
         #E= 0
         PsiImo = PsiIm
         #PsiIm = PsiImo +hbar*dt/(2*m)*self.diff(PsiRe,dy,order) + dt/hbar*(dy*q*r*E-potential.V())*PsiRe
@@ -319,7 +319,7 @@ dy = 0.5*0.125e-9
 #assert(dy==dy2) # m
 c = ct.speed_of_light # m/s
 Sy = 1 # !Courant number, for stability this should be smaller than 1
-dt = 1*dy/c
+dt = 10*dy/c
 
 
 Ny = 400
@@ -365,8 +365,8 @@ animate_two_curves(div_current, diff_density)
     #print(expsel)
 
 expsel = qm.expvalues(dt, dy, 'continuity')[::100]
-animate_curve(expsel)
-plt.imshow(np.array(expsel).T)
+#animate_curve(expsel)
+#plt.imshow(np.array(expsel).T)
 
 plt.show()
 

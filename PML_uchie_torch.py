@@ -10,6 +10,19 @@ import time
 import psutil
 
 
+import torch
+
+# print(f"Is CUDA supported by this system? {torch.cuda.is_available()}")
+# print(f"CUDA version: {torch.version.cuda}")
+
+# # Storing ID of current CUDA device
+# cuda_id = torch.cuda.current_device()
+# print(f"ID of current CUDA device:{torch.cuda.current_device()}")
+	
+# print(f"Name of current CUDA device:{torch.cuda.get_device_name(cuda_id)}")
+
+
+
 c0 = 299792458
 eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
@@ -18,7 +31,7 @@ Z0 = np.sqrt(mu0/eps0)
 
 
 device = th.device("cuda" if th.cuda.is_available() else "cpu")
-
+print(device)
 ### Source ###
 class Source:
     def __init__(self, x, y, J0, tc, sigma):
@@ -82,7 +95,7 @@ class UCHIE:
        
         I_E = th.eye(Nx - 1)
         I_H = th.eye(Nx + 1)
-        m = 10
+        m = 4
         pml_kxmax = pml_kmax
         pml_sigmax_max = (m+1)/(150*np.pi*dx)
         
@@ -93,7 +106,7 @@ class UCHIE:
         sigma_tot_E = th.hstack((pml_sigmax.flip(dims=[0]), th.zeros(Nx - 1 - 2*pml_nl), pml_sigmax))
         k_tot_H = th.hstack((pml_kx.flip(dims=[0]), th.ones(Nx+1 - 2*pml_nl), pml_kx))
         sigma_tot_H = th.hstack((pml_sigmax.flip(dims=[0]), th.zeros(Nx + 1 - 2*pml_nl), pml_sigmax))
-        print(k_tot_E, sigma_tot_E, k_tot_H, sigma_tot_H)
+        #print(k_tot_E, sigma_tot_E, k_tot_H, sigma_tot_H)
         # pml_kymax = 4
         # pml_sigmay_max = (m+1)/(150*np.pi*dy)
         # pml_ky = np.array([1 + (pml_kymax -1)*(i/pml_nl)**m for i in range(0, pml_nl)])

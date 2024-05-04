@@ -8,7 +8,7 @@ import time
 import psutil
 #For the QM part, we require a simple 1D FDTD scheme
 
-from PML_uchie_torch import Source, UCHIE
+from uchie_FAST import Source, UCHIE
 
 c0 = 299792458
 eps0 = 8.854 * 10**(-12)
@@ -170,6 +170,7 @@ class coupled:
         dataIm = []
         dataprob = []
         datacurr = []
+        datamom = []
 
         
         data = []
@@ -212,6 +213,12 @@ class coupled:
             J[0]=0
             J[-1]= 0
 
+
+            Psi = PsiRe+ 1j*PsiImhalf
+            momentum = np.conj(Psi)*-1j*hbar*1/dy*(np.roll(Psi,-1)-np.roll(Psi,1))
+            momentum[0] = 0
+            momentum[-1] = 0
+
             prob = PsiRe**2  + PsiImhalf**2
             #probability = PsiRe**2 + PsiIm**2 
             # PsiReint = 1/2*(PsiRe + np.roll(PsiRe, -1))
@@ -228,18 +235,20 @@ class coupled:
                 data_time.append(dt*n)
                 dataRe.append(PsiRe)
                 dataIm.append(PsiIm)
-                dataprob.append(copy.deepcopy(prob))
+                dataprob.append(prob)
+                #dataprob.append(copy.deepcopy(prob))
                 datacurr.append(J)
                 #data.append(copy.deepcopy((Efield.T)))
                 data.append(Efield.T)
+                datamom.append(momentum)
             #J in input for EM part
-        self.result = data_time, dataRe, dataIm, dataprob, datacurr, data
-        return data_time, dataRe, dataIm, dataprob, datacurr, data
+        self.result = data_time, dataRe, dataIm, dataprob, datacurr, data, datamom
+        return data_time, dataRe, dataIm, dataprob, datacurr, data, datamom
     
     def expvalues(self,dt, dy,  type):
         if self.result == None:
-            data_time, dataRe, dataIm, dataprob, datacurr, data = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, alpha,order,N)
-        else: data_time, dataRe, dataIm, dataprob, datacurr , data = self.result
+            data_time, dataRe, dataIm, dataprob, datacurr, data, datamom = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, alpha,order,N)
+        else: data_time, dataRe, dataIm, dataprob, datacurr , data, datamom = self.result
         if type == 'position':
             exp = []
             for el in dataprob:
@@ -247,9 +256,11 @@ class coupled:
             
         if type == 'momentum':
             exp = []
-            for i in range(len(data_time)-1):
-                val = 1/2*((1/2*(np.roll(dataRe[i+1], -1) + np.roll(dataRe[i],-1)) - 1j*np.roll(dataIm[i],-1)) + (1/2*(dataRe[i+1]+ dataRe[i]) - 1j*dataIm[i]))*((-1j*hbar/(2*dy)*(np.roll(dataRe[i+1],-1) +np.roll(dataRe[i],-1)-dataRe[i+1]- dataRe[i]))+hbar/dy*(np.roll(dataIm[i],-1)-dataIm[i]))
-                exp.append(np.sum(val))
+            # for i in range(len(data_time)-1):
+            #     val = 1/2*((1/2*(np.roll(dataRe[i+1], -1) + np.roll(dataRe[i],-1)) - 1j*np.roll(dataIm[i],-1)) + (1/2*(dataRe[i+1]+ dataRe[i]) - 1j*dataIm[i]))*((-1j*hbar/(2*dy)*(np.roll(dataRe[i+1],-1) +np.roll(dataRe[i],-1)-dataRe[i+1]- dataRe[i]))+hbar/dy*(np.roll(dataIm[i],-1)-dataIm[i]))
+            #     exp.append(np.sum(val))
+            for el in datamom:
+                exp.append(np.trapz(el))
 
         if type == 'energy':
             exp= []
@@ -356,7 +367,7 @@ dt = Sy*dy/c0
 #print(dt)
 Nx = 400
 Ny = 400
-Nt = 15000
+Nt = 5000
 
 pml_nl = 20
 pml_kmax = 4
@@ -422,14 +433,14 @@ qm.animate_field(res[0], res[5])
 # plt.colorbar()
 # #plt.plot(prob[8000])
 # plt.show()
-# types = ['position', 'momentum', 'energy']
-# for type in types: 
-#     exp = qm.expvalues(dt, dy, type)
-#     expsel = exp[::100]
-#     #print(expsel)
-#     plt.plot(expsel)
-#     plt.title(type)
-#     plt.show()
+types = ['position', 'momentum', 'energy']
+for type in types: 
+    exp = qm.expvalues(dt, dy, type)
+    #expsel = exp[::100]
+    #print(expsel)
+    plt.plot(exp)
+    plt.title(type)
+    plt.show()
 
 # exp = qm.expvalues(dt, dy, 'continuity')
 # expsel = exp[::100]

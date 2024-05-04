@@ -30,7 +30,8 @@ class ElectricField:
             raise ValueError(f"Unknown field type: {self.field_type}")
 
     def _gaussian(self, t, t0=0, sigma=1):
-        t0 = 10000*self.dt
+        t0 = 20000*self.dt
+        sigma = t0
         return self.amplitude * np.exp(-0.5 * ((t - t0) / sigma) ** 2)
 
     def _sinusoidal(self, t, omega=1):
@@ -91,10 +92,9 @@ class QM:
     ### Update ###
     def update(self, PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N):
         #E = efield.generate((n)*dt)*np.ones(Ny)
-      
-        E = efield.generate((n)*dt, omega=omega)*np.ones(Ny)
+        E = efield.generate((n)*dt)*np.ones(Ny)
+        #E = efield.generate((n)*dt, omega=omegaHO)*np.ones(Ny)
 
-        print(E[Ny//2])
 
         #E= 0
         PsiReo = PsiRe
@@ -104,7 +104,8 @@ class QM:
         PsiRe[0] = 0
         PsiRe[-1] = 0
         #E = efield.generate((n+1/2)*dt)*np.ones(Ny)
-        E = efield.generate((n+1/2)*dt,omega=omega)*np.ones(Ny)
+        E = efield.generate((n+1/2)*dt)*np.ones(Ny)
+        #E = efield.generate((n+1/2)*dt,omega=omegaHO)*np.ones(Ny)
         #E= 0
         PsiImo = PsiIm
         PsiIm = PsiImo +hbar*dt/(2*m)*self.diff(PsiRe,dy,order) + dt/hbar*(q*r*E-potential.V())*PsiRe
@@ -114,44 +115,48 @@ class QM:
         PsiIm[-1] = 0
         #We need the PsiIm at half integer time steps -> interpol
         PsiImhalf = (PsiImo + PsiIm)/2
-        J = N*q*hbar/(m*dy)*(PsiRe*np.roll(PsiImhalf,-1) - np.roll(PsiRe,-1)*PsiImhalf)
+        J = hbar/(m*dy)*(PsiRe*np.roll(PsiImhalf,-1) - np.roll(PsiRe,-1)*PsiImhalf)
         J[0]=0
         J[-1]= 0
 
+
+        Psi = PsiRe+ 1j*PsiImhalf
+        momentum = np.conj(Psi)*-1j*hbar*1/dy*(np.roll(Psi,-1)-np.roll(Psi,1))
+        momentum[0] = 0
+        momentum[-1] = 0
+
         prob = PsiRe**2  + PsiImhalf**2
         
-        return PsiRe, PsiIm, J, prob
+        return PsiRe, PsiIm, J, prob, momentum
     
         
     
     def calc_wave(self, dy, dt, Ny, Nt,  hbar, m ,q ,potential, efield,alpha,order,N):
-        PsiRe,PsiIm ,r = self.initialize(dy, Ny,m,omega, hbar,alpha)
+        PsiRe,PsiIm ,r = self.initialize(dy, Ny,m,omegaHO, hbar,alpha)
         data_time = []
         dataRe = []
         dataIm = []
         dataprob = []
         datacurr = []
+        datamom = []
 
         for n in range(1, Nt):
-            PsiRe, PsiIm , J ,prob = self.update(PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N)
-            #probability = PsiRe**2 + PsiIm**2 
-            # PsiReint = 1/2*(PsiRe + np.roll(PsiRe, -1))
-            # PsiReint[0]=0
-            # PsiReint[-1] = 0
-            # probability = PsiReint**2 + PsiIm**2
+            PsiRe, PsiIm , J ,prob, momentum = self.update(PsiRe, PsiIm, dy, dt, hbar, m, q, r, potential, efield, n,order,N)
+    
             data_time.append(dt*n)
             dataRe.append(PsiRe)
             dataIm.append(PsiIm)
             dataprob.append(prob)
             datacurr.append(J)
+            datamom.append(momentum)
             #J in input for EM part
-        self.result = data_time, dataRe, dataIm, dataprob, datacurr
-        return data_time, dataRe, dataIm, dataprob, datacurr
+        self.result = data_time, dataRe, dataIm, dataprob, datacurr, datamom
+        return data_time, dataRe, dataIm, dataprob, datacurr, datamom
     
     def expvalues(self,dt, dy,  type):
         if self.result == None:
-            data_time, dataRe, dataIm, dataprob, datacurr = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
-        else: data_time, dataRe, dataIm, dataprob, datacurr = self.result
+            data_time, dataRe, dataIm, dataprob, datacurr , datamom = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+        else: data_time, dataRe, dataIm, dataprob, datacurr, datamom = self.result
         if type == 'position':
             exp = []
             for el in dataprob:
@@ -159,9 +164,11 @@ class QM:
             
         if type == 'momentum':
             exp = []
-            for i in range(len(data_time)-1):
-                val = 1/2*((1/2*(np.roll(dataRe[i+1], -1) + np.roll(dataRe[i],-1)) - 1j*np.roll(dataIm[i],-1)) + (1/2*(dataRe[i+1]+ dataRe[i]) - 1j*dataIm[i]))*((-1j*hbar/(2*dy)*(np.roll(dataRe[i+1],-1) +np.roll(dataRe[i],-1)-dataRe[i+1]- dataRe[i]))+hbar/dy*(np.roll(dataIm[i],-1)-dataIm[i]))
-                exp.append(np.sum(val))
+            # for i in range(len(data_time)-1):
+            #     val = 1/2*((1/2*(np.roll(dataRe[i+1], -1) + np.roll(dataRe[i],-1)) - 1j*np.roll(dataIm[i],-1)) + (1/2*(dataRe[i+1]+ dataRe[i]) - 1j*dataIm[i]))*((-1j*hbar/(2*dy)*(np.roll(dataRe[i+1],-1) +np.roll(dataRe[i],-1)-dataRe[i+1]- dataRe[i]))+hbar/dy*(np.roll(dataIm[i],-1)-dataIm[i]))
+            #     exp.append(np.sum(val))
+            for el in datamom:
+                exp.append(np.sum(el))
 
         if type == 'energy':
             exp= []
@@ -173,20 +180,46 @@ class QM:
                 val = (dataRe[i]-1j*dataIm[i])*(-hbar**2/(2*m)*self.diff(dataRe[i]+1j*dataIm[i], dy, order)+self.potential.V()*(dataRe[i]+1j*dataIm[i]))
                 exp.append(np.sum(val))
 
+        
         if type == 'continuity':
             exp = []
             for i in range(1,len(data_time)-1):
                 #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
 
                 #find curr at n trough interpol:
-                datacurr[i] = 1/2* (datacurr[i] + datacurr[i-1])
-             
+                datacurrhalf = 1/2* (datacurr[i] + datacurr[i-1])
+                
                 #for rho deriv in time puts time also at n, for J deriv puts pos at r
-                val = q*(dataprob[i]-dataprob[i-1])/dt+1/dy*(datacurr[i]- np.roll(datacurr[i],1))
-                exp.append(val[1:-1])
+                val = (dataprob[i] - dataprob[i-1])[1:]/dt+(datacurrhalf- np.roll(datacurrhalf,1))[1:]/dy
+                exp.append(val)
+                #exp.append(np.sum(val[1:-1]))
+        if type == 'J':
+            exp = []
+            for i in range(1,len(data_time)-1):
+                #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
+
+                #find curr at n trough interpol:
+                datacurrhalf = 1/2* (datacurr[i] + datacurr[i-1])
+                
+                #for rho deriv in time puts time also at n, for J deriv puts pos at r
+                val = -(datacurrhalf- np.roll(datacurrhalf,1))[1:]/dy
+                exp.append(val)
+                #exp.append(np.sum(val[1:-1]))
+        if type == 'dens':
+            exp = []
+            for i in range(1,len(data_time)-1):
+                #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
+
+                #find curr at n trough interpol:
+                
+                #for rho deriv in time puts time also at n, for J deriv puts pos at r
+                val = (dataprob[i] - dataprob[i-1])[1:]/dt
+                exp.append(val)
                 #exp.append(np.sum(val[1:-1]))
 
         return exp
+
+
 
     
     def postprocess():
@@ -235,7 +268,46 @@ class QM:
 
 ##########################################################
 
-        
+
+def animate_curve(data):
+    fig, ax = plt.subplots()
+    xdata, ydata = [], []
+    ln, = plt.plot([], [], 'r-')
+    def init():
+        ax.set_xlim(0, len(data[0]))
+        ax.set_ylim(np.min(data), np.max(data))
+        return ln,
+
+    def update(frame):
+        xdata=np.arange(len(data[frame]))
+        ydata=data[frame]
+        ln.set_data(xdata, ydata)
+        return ln,
+
+    ani = FuncAnimation(fig, update, frames=len(data), init_func=init, interval=30)
+    plt.show()
+
+def animate_two_curves(data1, data2):
+    fig, ax = plt.subplots()
+    xdata, ydata = [], []
+    ln, = plt.plot([], [], 'r-')
+    ln2, = plt.plot([], [], 'b-')
+    def init():
+        ax.set_xlim(0, len(data1[0]))
+        ax.set_ylim(np.min(data1), np.max(data1))
+        return ln, ln2
+
+    def update(frame):
+        xdata=np.arange(len(data1[frame]))
+        ydata=data1[frame]
+        ln.set_data(xdata, ydata)
+        ydata=data2[frame]
+        ln2.set_data(xdata, ydata)
+        return ln, ln2
+
+    ani = FuncAnimation(fig, update, frames=len(data1), init_func=init, interval=30)
+    plt.show()
+
 eps0 = ct.epsilon_0
 mu0 = ct.mu_0
 hbar = ct.hbar #J⋅s
@@ -253,23 +325,24 @@ dt = 10*dy/c
 
 Ny = 400
 #Nt =20000
-Nt = 30000
+Nt = 200000
 N = 10000 #particles/m2
 
 
-omega = 50e12 #[rad/s]
+omegaHO = 50e12#*2*np.pi #[rad/s]
 alpha = 0
-potential = Potential(m,omega, Ny, dy)
+potential = Potential(m,omegaHO, Ny, dy)
 potential.V()
 
-#Efield = ElectricField('gaussian',dt, amplitude = 10000000)
-Efield = ElectricField('sinusoidal',dt, amplitude = 1e7)
+Efield = ElectricField('gaussian',dt, amplitude = 1e7)
+#Efield = ElectricField('sinusoidal',dt, amplitude = 1e7)
 #Efield.generate(1)
 
 order = 'fourth'
 
 qm = QM(order)
 res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha, order,N)
+#res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield, omegaHO, alpha, order,N)
 # prob = res[3]
 # probsel = prob[::100]
 
@@ -278,19 +351,25 @@ qm.animate( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
 # plt.colorbar()
 # #plt.plot(prob[8000])
 # plt.show()
-# types = ['position', 'momentum', 'energy']
-# for type in types: 
-#     exp = qm.expvalues(dt, dy, type)
-#     expsel = exp[::100]
-#     #print(expsel)
-#     plt.plot(expsel)
-#     plt.title(type)
-#     plt.show()
-
-exp = qm.expvalues(dt, dy, 'continuity')
-expsel = exp[::100]
+types = ['position', 'momentum', 'energy']
+for type in types: 
+    exp = qm.expvalues(dt, dy, type)
+    expsel = exp[::100]
     #print(expsel)
-plt.imshow(np.array(expsel).T)
+    plt.plot(expsel)
+    plt.title(type)
+    plt.show()
+
+div_current = qm.expvalues(dt, dy, 'J')[::100]
+diff_density = qm.expvalues(dt, dy, 'dens')[::100]
+
+animate_two_curves(div_current, diff_density)
+    #print(expsel)
+
+expsel = qm.expvalues(dt, dy, 'continuity')[::100]
+#animate_curve(expsel)
+#plt.imshow(np.array(expsel).T)
+
 plt.show()
 
 
