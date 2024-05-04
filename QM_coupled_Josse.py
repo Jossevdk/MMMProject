@@ -9,6 +9,7 @@ import psutil
 #For the QM part, we require a simple 1D FDTD scheme
 
 from uchie_FAST import Source, UCHIE
+from PML_uchie import Source, UCHIE
 
 c0 = 299792458
 eps0 = 8.854 * 10**(-12)

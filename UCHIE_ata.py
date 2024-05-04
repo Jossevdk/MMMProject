@@ -47,7 +47,6 @@ class UCHIE:
         # We will create a bigger matrix which we need to inverse
         M1_top = np.hstack((1/dx*A_D, 1/dt*A_I))
         M1_bot = np.hstack((eps/dt*A_I, 1/(mu*dx)*A_D))
-        
         M1 = np.vstack((M1_top, M1_bot))
         # M1[0, :] = np.zeros(2*Nx+2)
         # M1[0, 0] = 1
@@ -70,18 +69,14 @@ class UCHIE:
     ### Update ###
     def explicit(self, Ex, Bz, dy, dt, eps, mu):
         Ex[1:-1, 1:-1] = Ex[1:-1, 1:-1] + dt/(eps*dy*mu) * (Bz[1:-1, 1:] - Bz[1:-1, :-1])
-
-
         return Ex
 
 
     def implicit(self, n, X, Ex, dx, dy, dt, Nx, Ny, M1_inv, M2, source):
         Y = Ex[:-1, 1:] + Ex[1:, 1:] - Ex[:-1, :-1] - Ex[1:, :-1]
 
-        S = np.zeros((2*Nx+2, Ny))
-        S[Nx + int(source.x/dx), int(source.y/dy)] = source.J(n*dt)
-        X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy + M1_inv@S
-        
+        X[Nx+1+int(source.y/dy), int(source.y/dy)] += source.J(n*dt)*dt
+        X = M1_inv@M2@X + M1_inv@np.vstack((Y, np.zeros((Nx+2, Ny))))/dy
 
         return X
         
@@ -161,7 +156,6 @@ xs = Nx*dx/2
 ys = Ny*dy/2
 
 tc = dt*Nt/3
-print(tc)
 sigma = tc/3
 
 source = Source(xs, ys, 1, tc, sigma)
