@@ -138,7 +138,7 @@ class UCHIE:
         tracker =[[], []]
         for n in range(Nt):
             self.update(n, source)
-            if n % 1 == 0:
+            if n % 50 == 0:
                 data_time.append(self.dt * n)
                 data.append(Z0*self.ex0.T.copy())
                 tracker[0].append((Z0*self.ex0[self.Nx//4,self.Ny//2]).copy())
@@ -179,7 +179,7 @@ dt = Sy*dy/c0
 #print(dt)
 Nx = 300
 Ny = 300
-Nt = 400
+Nt = 1000
 
 pml_nl = 10
 pml_kmax = 4

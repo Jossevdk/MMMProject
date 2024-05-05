@@ -70,7 +70,7 @@ class Source:
 
 #### UCHIE ####
 class PML_Y:
-    def __init__(self,  Nx, Ny, dx, dy, dt,reverse = False, pml_kmax = None, pml_nl = None):
+    def __init__(self,  Nx, Ny, dx, dy, dt,reverse = False, pml_kmax = None, pml_nl = None, m=None):
         
         self.Nx = Nx
         self.Ny = Ny
