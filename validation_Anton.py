@@ -48,6 +48,8 @@ class Source:
         self.J0 = J0
         self.tc = tc
         self.sigma = sigma
+        self.omegamax = 3/self.sigma
+        #self.omega = omega
         
     #This will call the function depending on which type of source you have    
     def J(self, t):
@@ -58,6 +60,9 @@ class Source:
     
     def J_abs(self, omega):
         return self.J0*np.sqrt(2*np.pi)*self.sigma*np.exp(-self.sigma**2*omega**2/2)
+    
+    # def J_sinus(self, t, omega):
+    #     return self.J0*np.sin(self.omega*t)
 
 
 
@@ -184,7 +189,7 @@ class UCHIE:
             self.implicit(n, source)
             self.explicit()
             if n % 1 == 0:
-                print(n)
+                #print(n)
                 data_time.append(self.dt*n)
                 data.append(copy.deepcopy((Z0*self.ex0.T).to("cpu")))
                 tracker.append(copy.deepcopy(self.X[self.Nx - 1 + self.Nx//3,self.Ny//3].to('cpu')))
@@ -223,6 +228,17 @@ class UCHIE:
     
 
     # TODO
+
+    def fourier(self, Hz, w_max, ZP, rate):
+        fourier_transform = np.fft.fft(Hz, n=ZP)*rate
+        freq_axis = np.fft.fftfreq(ZP, rate)
+        index = np.where(((freq_axis >= 0) & (freq_axis <= w_max/(2*np.pi))))
+        freq_axis = freq_axis[index]
+        fourier_transform = fourier_transform[index]
+        return freq_axis, fourier_transform
+    
+
+
     def validation(self, recorder, source, dx, dy):
         x = recorder.x
         y = recorder.y
@@ -232,24 +248,31 @@ class UCHIE:
         plt.show()
         plt.close()
 
+        
+
         omega_max = 3/sigma
         Hz = recorder.data
 
-        omega = 2*np.pi*ft.rfftfreq(10000, self.dt)  # Get the frequency
-        Hz_freq = ft.rfft(Hz, 10000)
+        padding = 1000000
+        freq_axis, FT = self.fourier(Hz, omega_max, padding, dt)
+        omega = freq_axis*2*np.pi
+        #bb = source_1.w_max
 
-        width = next((i for i, val in enumerate(omega) if val > omega_max), len(omega))  # Find index where omega > omega_max
+        # omega = 2*np.pi*ft.rfftfreq(10000, self.dt)  # Get the frequency
+        # Hz_freq = ft.rfft(Hz, 10000)
 
-        omega = omega[:width] 
-        Hz_freq = Hz_freq[:width]
+        # width = next((i for i, val in enumerate(omega) if val > omega_max), len(omega))  # Find index where omega > omega_max
 
+        # omega = omega[:width] 
+        # Hz_freq = Hz_freq[:width]
+        spectralcontent = source.J0*np.sqrt(2*np.pi)*sigma*np.exp(-sigma**2*omega**2/2)
         k0 = omega/ct.c
         z = k0*np.sqrt((x - source.x)**2 + (y - source.y)**2)
 
         Hz_ana = -source.J0*omega*ct.mu_0/4 * hankel2(0, z)
 
-        plt.plot(omega, np.abs(Hz_freq))
-        plt.plot(omega, np.abs(Hz_ana))
+        plt.plot(omega, np.abs(FT/spectralcontent))
+        #plt.plot(omega, np.abs(Hz_ana))
         plt.title("Validation magnetic field at location (" + "{:.6g}".format(x) + "m, " + "{:.6g}".format(y) + "m)")
         plt.xlabel("frequency $\omega$ [Hz]")
         plt.ylabel("$H_{z}$ [A/m]")
@@ -285,7 +308,7 @@ ys = Ny*dy/2
 
 tc = dt*Nt/4
 #print(tc)
-sigma = tc/12
+sigma = tc/10
 
 recorder1 = Recorder(0.75*Nx*dx, 0.5*Ny*dy, 2)
 recorders = [recorder1]
@@ -307,5 +330,5 @@ end_time = time.time()
 
 print("Execution time: ", end_time - start_time, "seconds")
 
-scheme.animate_field(data_time, data)
+#scheme.animate_field(data_time, data)
 scheme.validation(recorder1, source, dx, dy)

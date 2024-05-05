@@ -8,8 +8,9 @@ import time
 import psutil
 #For the QM part, we require a simple 1D FDTD scheme
 
-from uchie_FAST import Source, UCHIE
-from PML_uchie import Source, UCHIE
+# from uchie_FAST import Source, UCHIE
+# from PML_uchie import Source, UCHIE
+import PML_uchie_fast as EM
 
 c0 = 299792458
 eps0 = 8.854 * 10**(-12)
@@ -94,9 +95,9 @@ class coupled:
         self.result = None
         self.order = order
         self.potential = potential
-        self.source  = Source(self.xs, self.ys, self.J0, self.tc, self.sigma)
+        self.source  = EM.Source(self.xs, self.ys, self.J0, self.tc, self.sigma)
         #print(self.source.x)
-        self.uchie = UCHIE(self.Nx, self.Ny, self.dx, self.dy, self.dt, pml_kmax = self.pml_kmax, pml_nl = self.pml_nl)
+        self.uchie = EM.UCHIE(self.Nx, self.Ny, self.dx, self.dy, self.dt, pml_kmax = self.pml_kmax, pml_nl = self.pml_nl)
         #self.Ny = Ny, self.dy = dy, self.dt = dt, self.hbar = hbar = self.m = m, self.q = q,
 
         
