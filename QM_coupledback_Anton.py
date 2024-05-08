@@ -12,7 +12,8 @@ import psutil
 # from PML_uchie import Source, UCHIE
 
 #EM and QM classes containing all the necessary update function
-import EM_update as EM
+import PML_uchie_update as EM
+#import EM_update as EM
 import QM_update as QM
 
 eps0 = ct.epsilon_0
@@ -42,11 +43,13 @@ class coupled:
         for n in range (self.Nt):
             # EMscheme.implicit(n, EMsource, QMscheme.J)
             # EMscheme.explicit()
-            Efield = 5*1e16*EMscheme.Update(n,EMsource,QMscheme.J )
+            
+            self.QMscheme.update(self.EMscheme.X[self.EMscheme.QMxpos,:],n)
+            self.EMscheme.update(n,self.EMsource,self.QMscheme.J )
             #E = copy.deepcopy(Efield[2*Nx//4,:])
-            E = Efield[2*Nx//4,:]
+           
             #efield = EMscheme.X[:] #add the correct selection here
-            QMscheme.update(Efield,n)
+            
 
 
 
@@ -58,11 +61,11 @@ dy = 0.125e-9# ms
 Sy = 0.8 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c0
 
-Nx = 400
-Ny = 400
-Nt = 400
+Nx = 200
+Ny =200
+Nt = 200
 
-pml_nl = 20
+pml_nl = 10
 pml_kmax = 4
 eps0 = 8.854 * 10**(-12)
 mu0 = 4*np.pi * 10**(-7)
@@ -76,10 +79,10 @@ ys = Ny*dy/2
 J0 = 1
 tc = dt*Nt/4
 sigma = tc/10
-QMxpos = Nx*dx/2  #this is where the quantum sheet is positioned
-
-EMsource = EM.Source(xs, ys, 1, tc, sigma)
-EMscheme = EM.UCHIE(Nx, Ny, dx, dy, dt, QMxpos,pml_kmax = pml_kmax, pml_nl = pml_nl)
+QMxpos = Nx//2  #this is where the quantum sheet is positioned
+mpml = 10
+EMsource = EM.Source(xs, ys, J0, tc, sigma)
+EMscheme = EM.UCHIE(Nx, Ny, dx, dy, dt, QMxpos,pml_kmax = pml_kmax, pml_nl = pml_nl,m=mpml)
 
 
 #############################################################
@@ -94,15 +97,18 @@ alpha = 0
 potential = QM.Potential(m,omega, Ny, dy)
 #potential.V()
 
-QMscheme = QM.QM(order,Ny,dy, dt, hbar, m, q, alpha, potential, omega)
+QMscheme = QM.QM(order,Ny,dy, dt, hbar, m, q, alpha, potential, omega, N)
 
 #############################################################
 #start the coupled simulation
-Nt = 200
+#Nt = 200
 
 coupledscheme = coupled(EMsource,EMscheme, QMscheme, Nt)
 
 coupledscheme.calcwave()
+coupledscheme.QMscheme.animate()
+coupledscheme.EMscheme.animate_field()
+
 
 
 # qm = coupled(order, Nx,Ny, dx, dy,dt, pml_kmax, pml_nl, J0, xs, ys, tc, sigma)

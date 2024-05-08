@@ -30,8 +30,8 @@ class ElectricField:
             raise ValueError(f"Unknown field type: {self.field_type}")
 
     def _gaussian(self, t, t0=0, sigma=1):
-        t0 = 20000*self.dt
-        sigma = t0
+        t0 = Nt*self.dt/3
+        sigma = t0/10
         return self.amplitude * np.exp(-0.5 * ((t - t0) / sigma) ** 2)
 
     def _sinusoidal(self, t, omega=1):
@@ -311,30 +311,30 @@ def animate_two_curves(data1, data2):
 eps0 = ct.epsilon_0
 mu0 = ct.mu_0
 hbar = ct.hbar #J⋅s
-m = ct.electron_mass
-q = ct.elementary_charge 
+m = ct.electron_mass*0.15
+q = -ct.elementary_charge 
 
 #dy = 0.125*10**(-9)
-dy = 0.125e-9
+dy = 0.25e-10
 #dy = 0.1
 #assert(dy==dy2) # m
 c = ct.speed_of_light # m/s
 Sy = 1 # !Courant number, for stability this should be smaller than 1
-dt = 10*dy/c
+dt = dy/c
 
 
-Ny = 400
+Ny = 200
 #Nt =20000
-Nt = 200000
-N = 10000 #particles/m2
+Nt = 5000
+N = 1e7 #particles/m2
 
 
-omegaHO = 50e12#*2*np.pi #[rad/s]
+omegaHO = 50e14#*2*np.pi #[rad/s]
 alpha = 0
 potential = Potential(m,omegaHO, Ny, dy)
 potential.V()
 
-Efield = ElectricField('gaussian',dt, amplitude = 1e7)
+Efield = ElectricField('gaussian',dt, amplitude = 1e10)
 #Efield = ElectricField('sinusoidal',dt, amplitude = 1e7)
 #Efield.generate(1)
 

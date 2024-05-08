@@ -229,9 +229,9 @@ class UCHIE:
         self.Y[self.Nx + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)
 
 
-        print(self.Y[int(self.QMxpos/self.dx), :].shape)
-        print(JQM.shape)
-        #self.Y[ int(self.QMxpos/self.dx), :] += JQM
+        #print(self.Y[int(self.QMxpos/self.dx), :].shape)
+        #print(JQM.shape)
+        self.Y[ int(self.QMxpos), :] += JQM[:]
 
 
 

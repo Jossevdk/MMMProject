@@ -58,7 +58,7 @@ class Potential:
 
 #### QM ####
 class QM:
-    def __init__(self,order,Ny,dy, dt, hbar, m, q, alpha, potential, omega):
+    def __init__(self,order,Ny,dy, dt, hbar, m, q, alpha, potential, omega, N):
         self.Ny = Ny
         self.dy = dy
         self.dt = dt
@@ -70,6 +70,7 @@ class QM:
         self.order = order
         self.potential = potential
         self.omega =omega
+        self.N=N
         
        
     #     #self.Ny = Ny, self.dy = dy, self.dt = dt, self.hbar = hbar = self.m = m, self.q = q,
@@ -77,11 +78,16 @@ class QM:
     #     #coherent state at y=0 for electron
         
         self.r = np.linspace(-self.Ny/2*self.dy, self.Ny/2*self.dy,self.Ny)
+        #print(self.r.shape)
         self.PsiRe = (self.m*self.omega/(np.pi*self.hbar))**(1/4)*np.exp(-self.m*self.omega/(2*self.hbar)*(self.r-self.alpha*np.sqrt(2*self.hbar/(self.m*self.omega))*np.ones(self.Ny))**2)
         self.PsiIm = np.zeros(self.Ny)
         self.J = np.zeros(self.Ny)
+        
+        #print(self.PsiRe)
         #self.J = 0
         #return self.PsiRe, self.PsiIm, self.r
+        self.data_prob= []
+        self.data_time = []
 
     def diff(self,psi):
         if self.order == 'second':
@@ -111,7 +117,7 @@ class QM:
         PsiReo = self.PsiRe
         self.PsiRe = PsiReo -self.hbar*self.dt/(2*self.m)*self.diff(self.PsiIm) - self.dt/self.hbar*(self.q*self.r*efield-self.potential.V())*self.PsiIm
         #PsiRe = PsiRe -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(-potential.V())*PsiIm
-       
+        #print(self.PsiRe)
         self.PsiRe[0] = 0
         self.PsiRe[-1] = 0
         #E = efield.generate((n+1/2)*dt)*np.ones(Ny)
@@ -124,12 +130,14 @@ class QM:
         
         self.PsiIm[0] = 0
         self.PsiIm[-1] = 0
+        #print(self.PsiIm.shape)
         #We need the PsiIm at half integer time steps -> interpol
         PsiImhalf = (PsiImo + self.PsiIm)/2
         self.J = self.hbar/(self.m*self.dy)*(self.PsiRe*np.roll(PsiImhalf,-1) - np.roll(self.PsiRe,-1)*PsiImhalf)
         self.J[0]=0
         self.J[-1]= 0
-        self.J *= self.q
+        self.J *= self.q*self.N
+        #print(self.J.shape)
 
         Psi = self.PsiRe+ 1j*PsiImhalf
         momentum = np.conj(Psi)*-1j*self.hbar*1/self.dy*(np.roll(Psi,-1)-np.roll(Psi,1))
@@ -137,6 +145,9 @@ class QM:
         momentum[-1] = 0
 
         prob = self.PsiRe**2  + PsiImhalf**2
+        
+        self.data_time.append(n*self.dt)
+        self.data_prob.append(prob)
         
         #return  prob, momentum
     
@@ -248,34 +259,34 @@ class QM:
     #     plt.show()
 
 
-    # def animate(self,dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N):
-    #     if self.result == None:
-    #         res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
-    #     else:
-    #         res = self.result
-    #     prob = res[3]
-    #     probsel = prob[::100]
-    #     fig, ax = plt.subplots()
+    def animate(self):
+        # if self.result == None:
+        #     res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+        #else:
+        # res = self.result
+        # prob = res[3]
+        # probsel = prob[::100]
+        fig, ax = plt.subplots()
 
-    #     # Create an empty plot object
-    #     line, = ax.plot([], [])
+        # Create an empty plot object
+        line, = ax.plot([], [])
 
-    #     def initanim():
-    #         ax.set_xlim(0, len(probsel[0]))  # Adjust the x-axis limits if needed
-    #         ax.set_ylim(0, np.max(probsel))  # Adjust the y-axis limits if needed
-    #         return line,
+        def initanim():
+            ax.set_xlim(0, len(self.data_prob[0]))  # Adjust the x-axis limits if needed
+            ax.set_ylim(0, np.max(self.data_prob))  # Adjust the y-axis limits if needed
+            return line,
 
-    #     # Define the update function
-    #     def updateanim(frame):
-    #         line.set_data(np.arange(len(probsel[frame])), probsel[frame])
-    #         return line,
+        # Define the update function
+        def updateanim(frame):
+            line.set_data(np.arange(len(self.data_prob[frame])), self.data_prob[frame])
+            return line,
 
 
       
-    #     anim = FuncAnimation(fig, updateanim, frames=len(probsel), init_func=initanim, interval = 30)
+        anim = FuncAnimation(fig, updateanim, frames=len(self.data_time), init_func=initanim, interval = 30)
 
-    #     # Show the animation
-    #     plt.show()
+        # Show the animation
+        plt.show()
 
 ##########################################################
 
