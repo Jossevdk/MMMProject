@@ -35,9 +35,10 @@ class Source:
 
 ### UCHIE ###
 class UCHIE:
-    def __init__(self, Nx, Ny, dx, dy, dt, QMxpos, pml_kmax=None, pml_nl=None, m=None):
+    def __init__(self, Nx, Ny, NyQM,dx, dy, dt, QMxpos, pml_kmax=None, pml_nl=None, m=None):
         self.Nx = Nx
         self.Ny = Ny
+        self.NyQM = NyQM
         self.dx = dx
         self.dy = dy
         self.dt = c0 * dt
@@ -88,9 +89,12 @@ class UCHIE:
         self.ex0[:, 1:-1] += self.dt / (self.dy) * (self.X[self.Nx+1:2 * self.Nx+2, 1:] - self.X[self.Nx+1:2 * self.Nx+2, :-1])
 
     def implicit(self, n, source, JQM):
-        self.Y[self.QMxpos, :]+=JQM
+        slice = int(1/2*(self.Ny-self.NyQM))
+        self.Y[self.QMxpos, slice :-slice]+= -2 * (1 / Z0) * JQM
         self.Y[self.Nx+2:2*self.Nx+2 , :] = self.A2@(self.ex0[:, 1:] - self.ex0[:, :-1])/self.dy
         self.Y[self.Nx+2 + int(source.x / self.dx), int(source.y / self.dy)] += -2 * (1 / Z0) * source.J(n * self.dt / c0)
+        
+
         self.X = self.M_N @ self.X + self.M_inv @ self.Y
 
     def update(self, n, source, JQM):
@@ -136,20 +140,20 @@ class UCHIE:
         self.data_E.append(Z0 * self.X[:self.Nx - 1, :].T)
         return Z0 * self.X[:self.Nx - 1, :].T
 
-    def calculate(self, Nt, source):
-        data_time = []
-        data = []
-        tracker =[[], []]
-        for n in range(Nt):
-            self.update(n, source)
-            if n % 50 == 0:
-                data_time.append(self.dt * n)
-                data.append(Z0*self.ex0.T.copy())
-                tracker[0].append((Z0*self.ex0[self.Nx//4,self.Ny//2]).copy())
-                tracker[1].append((Z0*self.ex0[3*self.Nx//4,self.Ny//2]).copy())
+    # def calculate(self, Nt, source):
+    #     data_time = []
+    #     data = []
+    #     tracker =[[], []]
+    #     for n in range(Nt):
+    #         self.update(n, source)
+    #         if n % 50 == 0:
+    #             data_time.append(self.dt * n)
+    #             data.append(Z0*self.ex0.T.copy())
+    #             tracker[0].append((Z0*self.ex0[self.Nx//4,self.Ny//2]).copy())
+    #             tracker[1].append((Z0*self.ex0[3*self.Nx//4,self.Ny//2]).copy())
             
 
-        return data_time, data, tracker
+    #     return data_time, data, tracker
     def animate_field(self):
         fig, ax = plt.subplots()
 

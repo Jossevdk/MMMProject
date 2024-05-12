@@ -19,8 +19,8 @@ import QM_update as QM
 eps0 = ct.epsilon_0
 mu0 = ct.mu_0
 hbar = ct.hbar #J⋅s
-m = ct.electron_mass
-q = ct.elementary_charge
+m = ct.electron_mass*0.15
+q = -ct.elementary_charge
 c0 = ct.speed_of_light 
 
 
@@ -43,8 +43,8 @@ class coupled:
         for n in range (self.Nt):
             # EMscheme.implicit(n, EMsource, QMscheme.J)
             # EMscheme.explicit()
-            
-            self.QMscheme.update(self.EMscheme.X[self.EMscheme.QMxpos,:],n)
+            slice = int(1/2*(self.EMscheme.Ny-self.EMscheme.NyQM))
+            self.QMscheme.update(1e16*self.EMscheme.X[self.EMscheme.QMxpos,slice:-slice],n)
             self.EMscheme.update(n,self.EMsource,self.QMscheme.J )
             #E = copy.deepcopy(Efield[2*Nx//4,:])
            
@@ -55,15 +55,16 @@ class coupled:
 
 ################################################
 #all the input for EM part
-dx = 1e-10 # m
-dy = 0.125e-9# ms
+dx = 0.25e-10 # m
+dy = 0.25e-10# ms
 
-Sy = 0.8 # !Courant number, for stability this should be smaller than 1
+Sy = 1 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c0
 
 Nx = 200
 Ny =200
-Nt = 200
+NyQM = int(3*Ny/4)
+Nt = 40000
 
 pml_nl = 10
 pml_kmax = 4
@@ -73,31 +74,31 @@ Z0 = np.sqrt(mu0/eps0)
 
 
 xs = Nx*dx/4 
-ys = Ny*dy/2
+ys = Ny*dy/4
 
 
-J0 = 1
-tc = dt*Nt/4
-sigma = tc/10
-QMxpos = Nx//2  #this is where the quantum sheet is positioned
+J0 = 1e6
+tc = dt*Nt/8
+sigma = tc/5
+QMxpos = 2*Nx//3  #this is where the quantum sheet is positioned
 mpml = 10
 EMsource = EM.Source(xs, ys, J0, tc, sigma)
-EMscheme = EM.UCHIE(Nx, Ny, dx, dy, dt, QMxpos,pml_kmax = pml_kmax, pml_nl = pml_nl,m=mpml)
+EMscheme = EM.UCHIE(Nx, Ny, NyQM, dx, dy, dt, QMxpos,pml_kmax = pml_kmax, pml_nl = pml_nl,m=mpml)
 
 
 #############################################################
 #QM input parameters
 
 
-N = 30000 #particles/m2
-
+N = 10e7*dx #particles/m2
+#NyQM = int(2*Ny/3)
 order = 'fourth'
-omega = 50e12 #[rad/s]
+omega = 50e14 #[rad/s]
 alpha = 0
-potential = QM.Potential(m,omega, Ny, dy)
+potential = QM.Potential(m,omega, NyQM, dy)
 #potential.V()
 
-QMscheme = QM.QM(order,Ny,dy, dt, hbar, m, q, alpha, potential, omega, N)
+QMscheme = QM.QM(order,NyQM,dy, dt, hbar, m, q, alpha, potential, omega, N)
 
 #############################################################
 #start the coupled simulation
@@ -106,8 +107,9 @@ QMscheme = QM.QM(order,Ny,dy, dt, hbar, m, q, alpha, potential, omega, N)
 coupledscheme = coupled(EMsource,EMscheme, QMscheme, Nt)
 
 coupledscheme.calcwave()
-coupledscheme.QMscheme.animate()
-coupledscheme.EMscheme.animate_field()
+#coupledscheme.QMscheme.animate()
+coupledscheme.QMscheme.expvalues('energy')
+#coupledscheme.EMscheme.animate_field()
 
 
 

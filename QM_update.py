@@ -73,9 +73,8 @@ class QM:
         self.N=N
         
        
-    #     #self.Ny = Ny, self.dy = dy, self.dt = dt, self.hbar = hbar = self.m = m, self.q = q,
-    # def initialize(self):
-    #     #coherent state at y=0 for electron
+    #    
+    #    #coherent state at y=0 for electron
         
         self.r = np.linspace(-self.Ny/2*self.dy, self.Ny/2*self.dy,self.Ny)
         #print(self.r.shape)
@@ -88,6 +87,8 @@ class QM:
         #return self.PsiRe, self.PsiIm, self.r
         self.data_prob= []
         self.data_time = []
+        self.data_mom=[]
+        self.data_energy= []
 
     def diff(self,psi):
         if self.order == 'second':
@@ -111,7 +112,6 @@ class QM:
         #E = efield.generate((n)*dt)*np.ones(Ny)
         #E = efield.generate((n)*self.dt)*np.ones(self.Ny)
         #E = efield.generate((n)*dt, omega=omegaHO)*np.ones(Ny)
-
 
         #E= 0
         PsiReo = self.PsiRe
@@ -145,9 +145,13 @@ class QM:
         momentum[-1] = 0
 
         prob = self.PsiRe**2  + PsiImhalf**2
+
+        energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
         
         self.data_time.append(n*self.dt)
-        self.data_prob.append(prob)
+        self.data_prob.append(prob.copy())
+        self.data_mom.append(np.sum(momentum))
+        self.data_energy.append(energy)
         
         #return  prob, momentum
     
@@ -175,71 +179,77 @@ class QM:
     #     self.result = data_time, dataRe, dataIm, dataprob, datacurr, datamom
     #     return data_time, dataRe, dataIm, dataprob, datacurr, datamom
     
-    # def expvalues(self,dt, dy,  type):
-    #     if self.result == None:
-    #         data_time, dataRe, dataIm, dataprob, datacurr , datamom = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
-    #     else: data_time, dataRe, dataIm, dataprob, datacurr, datamom = self.result
-    #     if type == 'position':
-    #         exp = []
-    #         for el in dataprob:
-    #             exp.append(np.sum(el*self.r*dy))
-            
-    #     if type == 'momentum':
-    #         exp = []
-    #         # for i in range(len(data_time)-1):
-    #         #     val = 1/2*((1/2*(np.roll(dataRe[i+1], -1) + np.roll(dataRe[i],-1)) - 1j*np.roll(dataIm[i],-1)) + (1/2*(dataRe[i+1]+ dataRe[i]) - 1j*dataIm[i]))*((-1j*hbar/(2*dy)*(np.roll(dataRe[i+1],-1) +np.roll(dataRe[i],-1)-dataRe[i+1]- dataRe[i]))+hbar/dy*(np.roll(dataIm[i],-1)-dataIm[i]))
-    #         #     exp.append(np.sum(val))
-    #         for el in datamom:
-    #             exp.append(np.sum(el))
+    def expvalues(self,type):
+        #if self.result == None:
+            #data_time, dataRe, dataIm, dataprob, datacurr , datamom = self.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
+        #else: data_time, dataRe, dataIm, dataprob, datacurr, datamom = self.result
+        if type == 'position':
+            exp = []
+            for el in self.data_prob:
+                exp.append(np.sum(el*self.r*self.dy))
+            plt.plot(exp)
+            plt.show()            
+        if type == 'momentum':
+            plt.plot(self.data_mom)
+            plt.show()
+            # exp = []
+            # # for i in range(len(data_time)-1):
+            # #     val = 1/2*((1/2*(np.roll(dataRe[i+1], -1) + np.roll(dataRe[i],-1)) - 1j*np.roll(dataIm[i],-1)) + (1/2*(dataRe[i+1]+ dataRe[i]) - 1j*dataIm[i]))*((-1j*hbar/(2*dy)*(np.roll(dataRe[i+1],-1) +np.roll(dataRe[i],-1)-dataRe[i+1]- dataRe[i]))+hbar/dy*(np.roll(dataIm[i],-1)-dataIm[i]))
+            # #     exp.append(np.sum(val))
+            # for el in datamom:
+            #     exp.append(np.sum(el))
 
-    #     if type == 'energy':
-    #         exp= []
-    #         for i in range(1,len(data_time)):
-    #             #fix psire because not at right moment
-    #             dataIm[i] = 1/2*(dataIm[i-1] + dataIm[i])
-    #             dataIm[i][0]= 0
-    #             dataIm[i][-1] = 0
-    #             val = (dataRe[i]-1j*dataIm[i])*(-hbar**2/(2*m)*self.diff(dataRe[i]+1j*dataIm[i], dy, order)+self.potential.V()*(dataRe[i]+1j*dataIm[i]))
-    #             exp.append(np.sum(val))
+        if type == 'energy':
+
+            plt.plot(self.data_energy)
+            plt.show()
+            #exp= []
+            # for i in range(1,len(data_time)):
+            #     #fix psire because not at right moment
+            #     dataIm[i] = 1/2*(dataIm[i-1] + dataIm[i])
+            #     dataIm[i][0]= 0
+            #     dataIm[i][-1] = 0
+            #     val = (dataRe[i]-1j*dataIm[i])*(-hbar**2/(2*m)*self.diff(dataRe[i]+1j*dataIm[i], dy, order)+self.potential.V()*(dataRe[i]+1j*dataIm[i]))
+            #     exp.append(np.sum(val))
 
         
-    #     if type == 'continuity':
-    #         exp = []
-    #         for i in range(1,len(data_time)-1):
-    #             #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
+        # if type == 'continuity':
+        #     exp = []
+        #     for i in range(1,len(data_time)-1):
+        #         #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
 
-    #             #find curr at n trough interpol:
-    #             datacurrhalf = 1/2* (datacurr[i] + datacurr[i-1])
+        #         #find curr at n trough interpol:
+        #         datacurrhalf = 1/2* (datacurr[i] + datacurr[i-1])
                 
-    #             #for rho deriv in time puts time also at n, for J deriv puts pos at r
-    #             val = (dataprob[i] - dataprob[i-1])[1:]/dt+(datacurrhalf- np.roll(datacurrhalf,1))[1:]/dy
-    #             exp.append(val)
-    #             #exp.append(np.sum(val[1:-1]))
-    #     if type == 'J':
-    #         exp = []
-    #         for i in range(1,len(data_time)-1):
-    #             #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
+        #         #for rho deriv in time puts time also at n, for J deriv puts pos at r
+        #         val = (dataprob[i] - dataprob[i-1])[1:]/dt+(datacurrhalf- np.roll(datacurrhalf,1))[1:]/dy
+        #         exp.append(val)
+        #         #exp.append(np.sum(val[1:-1]))
+        # if type == 'J':
+        #     exp = []
+        #     for i in range(1,len(data_time)-1):
+        #         #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
 
-    #             #find curr at n trough interpol:
-    #             datacurrhalf = 1/2* (datacurr[i] + datacurr[i-1])
+        #         #find curr at n trough interpol:
+        #         datacurrhalf = 1/2* (datacurr[i] + datacurr[i-1])
                 
-    #             #for rho deriv in time puts time also at n, for J deriv puts pos at r
-    #             val = -(datacurrhalf- np.roll(datacurrhalf,1))[1:]/dy
-    #             exp.append(val)
-    #             #exp.append(np.sum(val[1:-1]))
-    #     if type == 'dens':
-    #         exp = []
-    #         for i in range(1,len(data_time)-1):
-    #             #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
+        #         #for rho deriv in time puts time also at n, for J deriv puts pos at r
+        #         val = -(datacurrhalf- np.roll(datacurrhalf,1))[1:]/dy
+        #         exp.append(val)
+        #         #exp.append(np.sum(val[1:-1]))
+        # if type == 'dens':
+        #     exp = []
+        #     for i in range(1,len(data_time)-1):
+        #         #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
 
-    #             #find curr at n trough interpol:
+        #         #find curr at n trough interpol:
                 
-    #             #for rho deriv in time puts time also at n, for J deriv puts pos at r
-    #             val = (dataprob[i] - dataprob[i-1])[1:]/dt
-    #             exp.append(val)
-    #             #exp.append(np.sum(val[1:-1]))
+        #         #for rho deriv in time puts time also at n, for J deriv puts pos at r
+        #         val = (dataprob[i] - dataprob[i-1])[1:]/dt
+        #         exp.append(val)
+        #         #exp.append(np.sum(val[1:-1]))
 
-    #     return exp
+        #return exp
 
 
 
@@ -283,7 +293,7 @@ class QM:
 
 
       
-        anim = FuncAnimation(fig, updateanim, frames=len(self.data_time), init_func=initanim, interval = 30)
+        anim = FuncAnimation(fig, updateanim, frames=len(self.data_time), init_func=initanim, interval = 10)
 
         # Show the animation
         plt.show()

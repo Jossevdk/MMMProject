@@ -166,7 +166,7 @@ class UCHIE:
         #S_[int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)
         #Y = th.vstack((th.zeros((self.Nx, self.Ny)),S_ + th.mm(self.A2, (self.ex0[:, 1:] - self.ex0[:, :-1]))/self.dy, th.zeros((self.Nx-1, self.Ny)), th.zeros((self.Nx+1, self.Ny)), th.zeros((self.Nx-1, self.Ny)) ))
         self.Y[self.Nx:2*self.Nx , :] =  th.mm(self.A2, (self.ex0[:, 1:] - self.ex0[:, :-1]))/self.dy
-        self.Y[self.Nx + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)
+        self.Y[self.Nx + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)#*self.dt/c0
         #S = np.zeros((5*self.Nx-1, self.Ny))
         #S[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
         #self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
@@ -190,14 +190,14 @@ class UCHIE:
             self.explicit()
             if n % 1 == 0:
                 #print(n)
-                data_time.append(self.dt*n)
+                data_time.append(self.dt*n/c0)
                 data.append(copy.deepcopy((Z0*self.ex0.T).to("cpu")))
                 tracker.append(copy.deepcopy(self.X[self.Nx - 1 + self.Nx//3,self.Ny//3].to('cpu')))
                 #data.append(copy.deepcopy((self.X[self.Nx - 1:,:].T).to('cpu')))
 
                 for recorder in self.recorders:
                     if recorder.field == 2:
-                        recorder.save_data(self.X[self.Nx-1 + int(round(recorder.x/self.dx)), int(round(recorder.y/self.dy))], n*self.dt)
+                        recorder.save_data(self.X[self.Nx-1 + int(round(recorder.x/self.dx)), int(round(recorder.y/self.dy))], n*self.dt/c0)
             
         
         return data_time, data, tracker
@@ -253,8 +253,8 @@ class UCHIE:
         omega_max = 3/sigma
         Hz = recorder.data
 
-        padding = 1000000
-        freq_axis, FT = self.fourier(Hz, omega_max, padding, dt)
+        padding = 100000
+        freq_axis, FT = self.fourier(Hz, omega_max, padding, self.dt/c0)
         omega = freq_axis*2*np.pi
         #bb = source_1.w_max
 
@@ -269,10 +269,12 @@ class UCHIE:
         k0 = omega/ct.c
         z = k0*np.sqrt((x - source.x)**2 + (y - source.y)**2)
 
-        Hz_ana = -source.J0*omega*ct.mu_0/4 * hankel2(0, z)
+        Hz_ana = -source.J0*omega*ct.epsilon_0/4 * hankel2(0, z)#*ct.mu_0
 
+        #print( Hz_ana[1000]/FT/spectralcontent
         plt.plot(omega, np.abs(FT/spectralcontent))
-        #plt.plot(omega, np.abs(Hz_ana))
+        #plt.plot(omega, np.abs(FT))
+        plt.plot(omega, np.abs(Hz_ana))
         plt.title("Validation magnetic field at location (" + "{:.6g}".format(x) + "m, " + "{:.6g}".format(y) + "m)")
         plt.xlabel("frequency $\omega$ [Hz]")
         plt.ylabel("$H_{z}$ [A/m]")
@@ -285,8 +287,8 @@ class UCHIE:
 
 
 
-dx = 1e-10 # m
-dy = 0.125e-9# ms
+dx = 0.25e-10 # m
+dy = 0.25e-10# ms
 
 Sy = 0.8 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c0
@@ -309,10 +311,10 @@ ys = Ny*dy/2
 tc = dt*Nt/4
 #print(tc)
 sigma = tc/10
-
+J_0 = 1e4
 recorder1 = Recorder(0.75*Nx*dx, 0.5*Ny*dy, 2)
 recorders = [recorder1]
-source = Source(xs, ys, 1, tc, sigma)
+source = Source(xs, ys, J_0, tc, sigma)
 
 
 scheme = UCHIE(Nx, Ny, dx, dy, dt, pml_kmax = pml_kmax, pml_nl = pml_nl, recorders = recorders)
@@ -320,7 +322,7 @@ start_time = time.time()
 
 data_time, data, tracker = scheme.calculate(Nt, source)
 
-plt.plot(data_time, tracker)
+#plt.plot(data_time, tracker)
 process = psutil.Process()
 print("Memory usage:", process.memory_info().rss) # print memory usage
 print("CPU usage:", process.cpu_percent()) # print CPU usage
