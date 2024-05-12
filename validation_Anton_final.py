@@ -166,7 +166,7 @@ class UCHIE:
         #S_[int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)
         #Y = th.vstack((th.zeros((self.Nx, self.Ny)),S_ + th.mm(self.A2, (self.ex0[:, 1:] - self.ex0[:, :-1]))/self.dy, th.zeros((self.Nx-1, self.Ny)), th.zeros((self.Nx+1, self.Ny)), th.zeros((self.Nx-1, self.Ny)) ))
         self.Y[self.Nx:2*self.Nx , :] =  th.mm(self.A2, (self.ex0[:, 1:] - self.ex0[:, :-1]))/self.dy
-        self.Y[self.Nx + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)#*self.dt/c0
+        self.Y[self.Nx + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)/self.dx/self.dy#*self.dt/c0
         #S = np.zeros((5*self.Nx-1, self.Ny))
         #S[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] = -2*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
         #self.X[self.Nx-1 + int(source.x/self.dx), int(source.y/self.dy)] += -2*(1/Z0)*source.J(n*self.dt/c0)*self.dt/c0
@@ -230,7 +230,7 @@ class UCHIE:
     # TODO
 
     def fourier(self, Hz, w_max, ZP, rate):
-        fourier_transform = np.fft.fft(Hz, n=ZP)
+        fourier_transform = np.fft.fft(Hz, n=ZP)*rate
         freq_axis = np.fft.fftfreq(ZP, rate)
         index = np.where(((freq_axis >= 0) & (freq_axis <= w_max/(2*np.pi))))
         freq_axis = freq_axis[index]
@@ -269,11 +269,11 @@ class UCHIE:
         k0 = omega/ct.c
         z = k0*np.sqrt((x - source.x)**2 + (y - source.y)**2)
 
-        Hz_ana = -source.J0*omega*ct.mu_0/4 * hankel2(0, z)
+        Hz_ana = -source.J0*omega*eps0/4 * hankel2(0, z)
 
         #print( Hz_ana[1000]/FT/spectralcontent
-        plt.plot(omega, np.abs(FT/spectralcontent))
-        #plt.plot(omega, np.abs(Hz_ana))
+        plt.plot(omega, np.abs(FT/(spectralcontent)*source.J0))
+        plt.plot(omega, np.abs(Hz_ana))
         plt.title("Validation magnetic field at location (" + "{:.6g}".format(x) + "m, " + "{:.6g}".format(y) + "m)")
         plt.xlabel("frequency $\omega$ [Hz]")
         plt.ylabel("$H_{z}$ [A/m]")
@@ -310,7 +310,7 @@ ys = Ny*dy/2
 tc = dt*Nt/4
 #print(tc)
 sigma = tc/10
-J_0 = 1e4
+J_0 = 1000
 recorder1 = Recorder(0.75*Nx*dx, 0.5*Ny*dy, 2)
 recorders = [recorder1]
 source = Source(xs, ys, J_0, tc, sigma)
