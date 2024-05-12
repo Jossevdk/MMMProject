@@ -190,10 +190,10 @@ class UCHIE:
             self.explicit()
             if n % 1 == 0:
                 #print(n)
-                data_time.append(self.dt*n/c0)
+                data_time.append(self.dt*n)
                 data.append(copy.deepcopy((Z0*self.ex0.T).to("cpu")))
                 tracker.append(copy.deepcopy(self.X[self.Nx - 1 + self.Nx//3,self.Ny//3].to('cpu')))
-                #data.append(copy.deepcopy((self.X[self.Nx - 1:,:].T).to('cpu')))
+                data.append(copy.deepcopy((self.X[self.Nx - 1:,:].T).to('cpu')))
 
                 for recorder in self.recorders:
                     if recorder.field == 2:
@@ -230,7 +230,7 @@ class UCHIE:
     # TODO
 
     def fourier(self, Hz, w_max, ZP, rate):
-        fourier_transform = np.fft.fft(Hz, n=ZP)*rate
+        fourier_transform = np.fft.fft(Hz, n=ZP)
         freq_axis = np.fft.fftfreq(ZP, rate)
         index = np.where(((freq_axis >= 0) & (freq_axis <= w_max/(2*np.pi))))
         freq_axis = freq_axis[index]
@@ -269,12 +269,11 @@ class UCHIE:
         k0 = omega/ct.c
         z = k0*np.sqrt((x - source.x)**2 + (y - source.y)**2)
 
-        Hz_ana = -source.J0*omega*ct.epsilon_0/4 * hankel2(0, z)#*ct.mu_0
+        Hz_ana = -source.J0*omega*ct.mu_0/4 * hankel2(0, z)
 
         #print( Hz_ana[1000]/FT/spectralcontent
         plt.plot(omega, np.abs(FT/spectralcontent))
-        #plt.plot(omega, np.abs(FT))
-        plt.plot(omega, np.abs(Hz_ana))
+        #plt.plot(omega, np.abs(Hz_ana))
         plt.title("Validation magnetic field at location (" + "{:.6g}".format(x) + "m, " + "{:.6g}".format(y) + "m)")
         plt.xlabel("frequency $\omega$ [Hz]")
         plt.ylabel("$H_{z}$ [A/m]")
@@ -332,5 +331,5 @@ end_time = time.time()
 
 print("Execution time: ", end_time - start_time, "seconds")
 
-#scheme.animate_field(data_time, data)
+scheme.animate_field(data_time, data)
 scheme.validation(recorder1, source, dx, dy)
