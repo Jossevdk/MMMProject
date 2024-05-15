@@ -44,7 +44,7 @@ class coupled:
             # EMscheme.implicit(n, EMsource, QMscheme.J)
             # EMscheme.explicit()
             slice = int(1/2*(self.EMscheme.Ny-self.EMscheme.NyQM))
-            self.QMscheme.update(1e16*self.EMscheme.X[self.EMscheme.QMxpos,slice:-slice],n)
+            self.QMscheme.update(self.EMscheme.X[self.EMscheme.QMxpos,slice:-slice],n)
             self.EMscheme.update(n,self.EMsource,self.QMscheme.J )
             #E = copy.deepcopy(Efield[2*Nx//4,:])
            
@@ -64,7 +64,7 @@ dt = Sy*dy/c0
 Nx = 200
 Ny =200
 NyQM = int(3*Ny/4)
-Nt = 40000
+Nt = 1000
 
 pml_nl = 10
 pml_kmax = 4
@@ -77,8 +77,8 @@ xs = Nx*dx/4
 ys = Ny*dy/4
 
 
-J0 = 1e6
-tc = dt*Nt/8
+J0 = 1
+tc = dt*Nt/5
 sigma = tc/5
 QMxpos = 2*Nx//3  #this is where the quantum sheet is positioned
 mpml = 10
@@ -109,7 +109,7 @@ coupledscheme = coupled(EMsource,EMscheme, QMscheme, Nt)
 coupledscheme.calcwave()
 #coupledscheme.QMscheme.animate()
 coupledscheme.QMscheme.expvalues('energy')
-#coupledscheme.EMscheme.animate_field()
+coupledscheme.EMscheme.animate_field()
 
 
 

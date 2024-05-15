@@ -31,7 +31,7 @@ class ElectricField:
 
     def _gaussian(self, t, t0=0, sigma=1):
         t0 = 20000*self.dt
-        sigma = t0
+        sigma = t0/5
         return self.amplitude * np.exp(-0.5 * ((t - t0) / sigma) ** 2)
 
     def _sinusoidal(self, t, omega=1):
@@ -89,6 +89,8 @@ class QM:
         self.data_time = []
         self.data_mom=[]
         self.data_energy= []
+        self.beam_energy=[]
+        self.data_current = []
 
     def diff(self,psi):
         if self.order == 'second':
@@ -112,7 +114,7 @@ class QM:
         #E = efield.generate((n)*dt)*np.ones(Ny)
         #E = efield.generate((n)*self.dt)*np.ones(self.Ny)
         #E = efield.generate((n)*dt, omega=omegaHO)*np.ones(Ny)
-
+        efield*=1
         #E= 0
         PsiReo = self.PsiRe
         self.PsiRe = PsiReo -self.hbar*self.dt/(2*self.m)*self.diff(self.PsiIm) - self.dt/self.hbar*(self.q*self.r*efield-self.potential.V())*self.PsiIm
@@ -140,18 +142,25 @@ class QM:
         #print(self.J.shape)
 
         Psi = self.PsiRe+ 1j*PsiImhalf
-        momentum = np.conj(Psi)*-1j*self.hbar*1/self.dy*(np.roll(Psi,-1)-np.roll(Psi,1))
+        momentum = np.conj(Psi)*-1j*self.hbar*1/(2*self.dy)*(np.roll(Psi,-1)-np.roll(Psi,1))
         momentum[0] = 0
         momentum[-1] = 0
 
         prob = self.PsiRe**2  + PsiImhalf**2
 
-        energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
+        #energy = np.sum(np.conj(Psi)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(Psi)))
+        #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
+        energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)))#+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
+        #energy = np.sum(np.conj(Psi)*(-self.hbar**2/(2*self.m)*self.diff(Psi)*(Psi)))
+        #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
+        beam_energy = np.sum(np.conj(Psi)*(-self.q*self.r *efield*(Psi)))
         
         self.data_time.append(n*self.dt)
         self.data_prob.append(prob.copy())
         self.data_mom.append(np.sum(momentum))
         self.data_energy.append(energy)
+        self.beam_energy.append(beam_energy)
+        self.data_current.append(np.sum(self.J))
         
         #return  prob, momentum
     
@@ -203,6 +212,9 @@ class QM:
 
             plt.plot(self.data_energy)
             plt.show()
+            plt.plot(self.beam_energy)
+            plt.show()
+            plt.plot(self.data_current)
             #exp= []
             # for i in range(1,len(data_time)):
             #     #fix psire because not at right moment

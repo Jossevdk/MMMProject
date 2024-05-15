@@ -92,7 +92,7 @@ class UCHIE:
         slice = int(1/2*(self.Ny-self.NyQM))
         self.Y[self.QMxpos, slice :-slice]+= -2 * (1 / Z0) * JQM
         self.Y[self.Nx+2:2*self.Nx+2 , :] = self.A2@(self.ex0[:, 1:] - self.ex0[:, :-1])/self.dy
-        self.Y[self.Nx+2 + int(source.x / self.dx), int(source.y / self.dy)] += -2 * (1 / Z0) * source.J(n * self.dt / c0)
+        self.Y[self.Nx+2 + int(source.x / self.dx), int(source.y / self.dy)] += -2 * (1 / Z0) * source.J(n * self.dt / c0)/self.dx*self.dy
         
 
         self.X = self.M_N @ self.X + self.M_inv @ self.Y
@@ -166,7 +166,7 @@ class UCHIE:
         
         # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
 
-        cax = ax.imshow(self.data_E[3],vmin = -1e-11, vmax = 1e-11)
+        cax = ax.imshow(self.data_E[3],vmin = -1e-12, vmax = 1e-12)
         ax.set_title("T = 0")
 
         def animate_frame(i):
