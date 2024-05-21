@@ -107,19 +107,15 @@ class Yee_UCHIE:
         #$ print(A.to_string(index=False))
 
 
-        return M1_inv, M2, Ex, Ey, Bz, X, ex, ny, dx_f        
-
-
-
-    def implicit(self, n):
-        pass
+        return M1_inv, M2, Ex, Ey, Bz, X, ex, ny, dx_f  
 
 
 
     # Procedure from the paper is being followed
     def calculate_fields(self, dx, dx_f, dy, dt, Ny, nx, ny, Ex, Ey, Bz, X, ex, M1_inv, M2, x_sub, Nt, source):
 
-        data = []
+        data_yee = []
+        data_uchie = []
         data_time = []
         
         #@ x_sub is the index where the subgridding is happening, start counting from 0
@@ -153,7 +149,7 @@ class Yee_UCHIE:
             Bz[x1, y2] = Bz[x1, y2] - dt/dy * ex[0, -1] # Stitching upper left the UCHIE #TODO see course notes for more accurate
             Bz[x2, y2] = Bz[x2, y2] - dt/dy * ex[-1, -1] # Stitching upper right the UCHIE #TODO see course notes for more accurate
             Bz[x1, y1-1] = Bz[x1, y1-1] + dt/dy * ex[0, 0]  # Stitching down left the UCHIE #TODO see course notes for more accurate
-            Bz[x2, y1-1] = Bz[x2, y1-1] + dt/dy * ex[-1, 0] # Stitching upper right the UCHIE #TODO see course notes for more accurate
+            Bz[x2, y1-1] = Bz[x2, y1-1] + dt/dy * ex[-1, 0] # Stichtching upper right the UCHIE #TODO see course notes for more accurate
 
 
             ### Field update in UCHIE region updated, bz and ey with implicit ###
@@ -169,22 +165,22 @@ class Yee_UCHIE:
             ey = X[:nx+1, :]
             bz = X[nx+1:, :]
 
+            # A = pd.DataFrame(bz)
+            # A.columns = ['']*A.shape[1]
+            # print(A.to_string(index=False))
+
             #$ ey[0, :] = 1/dy*(ex[0, 1: ] + Ex[x1-1, y1+1:y2+1] - ex[0, :-1] - Ex[x1-1, y1:y2])  +  1/dx_f*(Ey[x1-1, y1:y2] + Ey[x1-2, y1:y2])  -  1/dt*(Bz[x1-1, y1:y2] - Bz_old[x1-1, y1:y2]) # UCHIE stitching left interface
             #$ ey[-1, :] = 1/dy*(ex[-1, 1: ] + Ex[x2+1, y1+1:y2+1] - ex[-1, :-1] - Ex[x2+1, y1:y2])  -  1/dx_f*(Ey[x2, y1:y2] + Ey[x2+1, y1:y2])  -  1/dt*(Bz[x2+1, y1:y2] - Bz_old[x2+1, y1:y2]) # UCHIE stitching right interface
-
-            X = np.vstack((bz, ey))
 
             ### Field update in UCHIE region ex explicit ###
             ex[:, 1:-1] = ex[:, 1:-1] + dt/(mu0*eps0*dy) * (bz[:, 1:] - bz[:, :-1])
 
-            #TODO something wrong in this
             A_1 = np.arange(nx+1)/nx # The interpolation matrix, see notes
             A_2 = A_1[::-1]
             A = np.vstack((A_2, A_1)).T
 
-
             ex[:, -1] = ex[:, -1]  +  dt/(mu0*eps0*dy) * (A @ Bz[x1:x2+1, y2] - bz[:, -1]) # Stitching upper interface @ Uchie
-            ex[:, 0] = ex[:, 0]  -  mu0*dt/(eps0*dy) * (A @ Bz[x1:x2+1, y1-1] - bz[:, 0]) # Stitching down interface @ Uchie
+            ex[:, 0] = ex[:, 0]  -  dt/(mu0*eps0*dy) * (A @ Bz[x1:x2+1, y1-1] - bz[:, 0]) # Stitching down interface @ Uchie
 
             
             ### Update Ex and Ey in the Yee region ###
@@ -199,27 +195,35 @@ class Yee_UCHIE:
 
 
             ### Save the data's ###
-            data.append(copy.deepcopy(Bz.T))
+            data_yee.append(copy.deepcopy(Bz.T))
+            data_uchie.append(copy.deepcopy(bz.T))
             data_time.append(n*dt)
 
 
-        return data_time, data
+        return data_time, data_yee, data_uchie
 
 
 
-    def animate_field(self, t, data):
+    def animate_field_yee(self, t, data, dx, dy, dt, source):
+
+        
         fig, ax = plt.subplots()
 
         ax.set_xlabel("x-axis [k]")
         ax.set_ylabel("y-axis [l]")
-        # ax.set_xlim(0, Nx*dx)
-        # ax.set_ylim(0, Ny*dy)
+        ax.set_xlim(0, (Nx+1)*dx)
+        ax.set_ylim(0, (Ny+1)*dy)
 
         label = "Field"
-        
-        # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
 
-        cax = ax.imshow(data[0])#, vmin = -1e-13, vmax = 1e-13)
+        xs = source.x
+        ys = source.y
+        
+        v = source.J0*dt * 0.1
+
+        ax.plot(xs, ys+0.5*dy, color="purple", marker= "o", label="Source") # plot the source
+
+        cax = ax.imshow(data[0], vmin = -v, vmax = v, origin='lower', extent = [0, (Nx+1)*dx, dy/2, Ny*dy])
         ax.set_title("T = 0")
 
         def animate_frame(i):
@@ -234,6 +238,35 @@ class Yee_UCHIE:
 
 
 
+    def animate_field_uchie(self, t, data, dx, dy, dt, source):
+
+
+        fig, ax = plt.subplots()
+
+        ax.set_xlabel("x-axis [k]")
+        ax.set_ylabel("y-axis [l]")
+        ax.set_xlim(0, (nx+1)*dx_f)
+        ax.set_ylim(0, (ny+1)*dy)
+
+        label = "Field"
+
+        v = source.J0*dt * 0.1
+
+        cax = ax.imshow(data[0], vmin = -v, vmax = v, origin='lower', extent = [0, (nx+1)*dx_f, dy/2, ny*dy])
+        ax.set_title("T = 0")
+
+
+        def animate_frame(i):
+            cax.set_array(data[i])
+            ax.set_title("T = " + str(t[i]))#"{:.12f}".format(t[i]*1000) + "ms")
+            return cax
+
+        global anim
+        
+        anim = animation.FuncAnimation(fig, animate_frame, frames = (len(data)), interval=20)
+        plt.show()
+
+
             
             
  
@@ -244,27 +277,28 @@ class Yee_UCHIE:
 ########## Fill in the parameters here ################
 Nx = 100
 Ny = 100
-Nt = 400
+Nt = 200
 
 dx = 0.25e-10 # m
 dy = 0.25e-10 # ms
-courant = 0.1 # !Courant number, for stability this should be smaller than 1
+courant = 0.9 # !Courant number, for stability this should be smaller than 1
 dt = courant * 1/(np.sqrt(1/dx**2 + 1/dy**2)*ct.c)
 
-Ly = 50*dy
-nx = 10 #@ Subgridding
+Ly = Ny/2*dy
+nx = 5 #@ Subgridding
 
 x_sub = Nx//2 #@ The index where the subgridding should happen
 
 
 #create the source
-xs = Nx/4*dx
-ys = Ny/2*dy
+xs = 1/3*Nx*dx
+ys = Ny/2 * dy + Ly/2
 tc = dt*Nt/4
 sigma = tc/10
 source = Source(xs, ys, 1, tc, sigma)
 
 test = Yee_UCHIE(Nx, Ny, Nt, dx, dy, dt, Ly, x_sub, nx, recorders=None)
 M1_inv, M2, Ex, Ey, Bz, X, ex, ny, dx_f = test.initialize(Nx, Ny, Nt, dx, dy, dt, Ly, x_sub, nx)
-data_time, data = test.calculate_fields(dx, dx_f, dy, dt, Ny, nx, ny, Ex, Ey, Bz, X, ex, M1_inv, M2, x_sub, Nt, source)
-test.animate_field(data_time, data)
+data_time, data_yee, data_uchie = test.calculate_fields(dx, dx_f, dy, dt, Ny, nx, ny, Ex, Ey, Bz, X, ex, M1_inv, M2, x_sub, Nt, source)
+test.animate_field_yee(data_time, data_yee, dx, dy, dt, source)
+test.animate_field_uchie(data_time, data_uchie, dx_f, dy, dt, source)
