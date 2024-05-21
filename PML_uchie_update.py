@@ -90,7 +90,7 @@ class UCHIE:
 
     def implicit(self, n, source, JQM):
         slice = int(1/2*(self.Ny-self.NyQM))
-        self.Y[self.QMxpos, slice :-slice]+= -2 * (1 / Z0) * JQM
+        #self.Y[self.QMxpos, slice :-slice]+= -2 * (1 / Z0) * JQM
         self.Y[self.Nx+2:2*self.Nx+2 , :] = self.A2@(self.ex0[:, 1:] - self.ex0[:, :-1])/self.dy
         self.Y[self.Nx+2 + int(source.x / self.dx), int(source.y / self.dy)] += -2 * (1 / Z0) * source.J(n * self.dt / c0)/self.dx*self.dy
         
@@ -165,8 +165,8 @@ class UCHIE:
         label = "Field"
         
         # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
-
-        cax = ax.imshow(self.data_E[3],vmin = -1e-12, vmax = 1e-12)
+        self.data_E = self.data_e[::50]
+        cax = ax.imshow(self.data_E[3],vmin = -2e-13, vmax = 2e-13)
         ax.set_title("T = 0")
 
         def animate_frame(i):
@@ -176,7 +176,7 @@ class UCHIE:
 
         global anim
         
-        anim = animation.FuncAnimation(fig, animate_frame, frames = (len(self.data_E)), interval=20)
+        anim = animation.FuncAnimation(fig, animate_frame, frames = (len(self.data_E)), interval=2)
         plt.show()
 
 # dx = 1e-10 # m

@@ -172,7 +172,7 @@ class Yee_UCHIE:
             #$ ey[0, :] = 1/dy*(ex[0, 1: ] + Ex[x1-1, y1+1:y2+1] - ex[0, :-1] - Ex[x1-1, y1:y2])  +  1/dx_f*(Ey[x1-1, y1:y2] + Ey[x1-2, y1:y2])  -  1/dt*(Bz[x1-1, y1:y2] - Bz_old[x1-1, y1:y2]) # UCHIE stitching left interface
             #$ ey[-1, :] = 1/dy*(ex[-1, 1: ] + Ex[x2+1, y1+1:y2+1] - ex[-1, :-1] - Ex[x2+1, y1:y2])  -  1/dx_f*(Ey[x2, y1:y2] + Ey[x2+1, y1:y2])  -  1/dt*(Bz[x2+1, y1:y2] - Bz_old[x2+1, y1:y2]) # UCHIE stitching right interface
 
-            X = np.vstack((bz, ey))
+            #X = np.vstack((bz, ey))
 
             ### Field update in UCHIE region ex explicit ###
             ex[:, 1:-1] = ex[:, 1:-1] + dt/(mu0*eps0*dy) * (bz[:, 1:] - bz[:, :-1])
@@ -190,11 +190,14 @@ class Yee_UCHIE:
             ### Update Ex and Ey in the Yee region ###
             Ex[1:-1, 1:-1] = Ex[1:-1, 1:-1] + dt/(dy*mu0*eps0) * (Bz[1:-1,1:] - Bz[1:-1,:-1])
             Ey = Ey - dt/(dx*mu0*eps0) * (Bz[1:,:] - Bz[:-1,:])
-            Ey[x1-1,y1:y2] = Ey[x1-1,y1:y2] - dt/(dx*mu0*eps0) * bz[0, :] # stiching left interface
-            Ey[x2,y1:y2] = Ey[x2,y1:y2] + dt/(dx*mu0*eps0) * bz[-1, :] # stiching right interface
 
             Ex[x1:x2+1, y1:y2+1] = 0 # Fields in the UCHIE region set zero to avoid double counting
             Ey[x1:x2, y1:y2] = 0 # Fields in the UCHIE region set zero to avoid double counting
+
+            Ey[x1-1,y1:y2] = Ey[x1-1,y1:y2] - dt/(dx*mu0*eps0) * bz[0, :] # stiching left interface
+            Ey[x2,y1:y2] = Ey[x2,y1:y2] + dt/(dx*mu0*eps0) * bz[-1, :] # stiching right interface
+
+            
 
 
 
@@ -219,7 +222,7 @@ class Yee_UCHIE:
         
         # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
 
-        cax = ax.imshow(data[0])#, vmin = -1e-13, vmax = 1e-13)
+        cax = ax.imshow(data[0], vmin = -1e-21, vmax = 1e-21)
         ax.set_title("T = 0")
 
         def animate_frame(i):
@@ -242,23 +245,23 @@ class Yee_UCHIE:
 
 
 ########## Fill in the parameters here ################
-Nx = 100
-Ny = 100
+Nx = 200
+Ny = 200
 Nt = 400
 
 dx = 0.25e-10 # m
 dy = 0.25e-10 # ms
-courant = 0.1 # !Courant number, for stability this should be smaller than 1
+courant = 0.9 # !Courant number, for stability this should be smaller than 1
 dt = courant * 1/(np.sqrt(1/dx**2 + 1/dy**2)*ct.c)
 
 Ly = 50*dy
-nx = 10 #@ Subgridding
+nx = 100 #@ Subgridding
 
 x_sub = Nx//2 #@ The index where the subgridding should happen
 
 
 #create the source
-xs = Nx/4*dx
+xs = 3*Nx/4*dx
 ys = Ny/2*dy
 tc = dt*Nt/4
 sigma = tc/10
@@ -268,3 +271,4 @@ test = Yee_UCHIE(Nx, Ny, Nt, dx, dy, dt, Ly, x_sub, nx, recorders=None)
 M1_inv, M2, Ex, Ey, Bz, X, ex, ny, dx_f = test.initialize(Nx, Ny, Nt, dx, dy, dt, Ly, x_sub, nx)
 data_time, data = test.calculate_fields(dx, dx_f, dy, dt, Ny, nx, ny, Ex, Ey, Bz, X, ex, M1_inv, M2, x_sub, Nt, source)
 test.animate_field(data_time, data)
+
