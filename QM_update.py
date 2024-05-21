@@ -91,6 +91,7 @@ class QM:
         self.data_energy= []
         self.beam_energy=[]
         self.data_current = []
+        self.data_position= []
 
     def diff(self,psi):
         if self.order == 'second':
@@ -114,7 +115,7 @@ class QM:
         #E = efield.generate((n)*dt)*np.ones(Ny)
         #E = efield.generate((n)*self.dt)*np.ones(self.Ny)
         #E = efield.generate((n)*dt, omega=omegaHO)*np.ones(Ny)
-        efield*=1
+        #efield*=100
         #E= 0
         PsiReo = self.PsiRe
         self.PsiRe = PsiReo -self.hbar*self.dt/(2*self.m)*self.diff(self.PsiIm) - self.dt/self.hbar*(self.q*self.r*efield-self.potential.V())*self.PsiIm
@@ -149,8 +150,8 @@ class QM:
         prob = self.PsiRe**2  + PsiImhalf**2
 
         #energy = np.sum(np.conj(Psi)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(Psi)))
-        #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
-        energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)))#+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
+        energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
+        #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)))#+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
         #energy = np.sum(np.conj(Psi)*(-self.hbar**2/(2*self.m)*self.diff(Psi)*(Psi)))
         #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
         beam_energy = np.sum(np.conj(Psi)*(-self.q*self.r *efield*(Psi)))
@@ -161,6 +162,7 @@ class QM:
         self.data_energy.append(energy)
         self.beam_energy.append(beam_energy)
         self.data_current.append(np.sum(self.J))
+        self.data_position.append(np.sum(prob*self.r*self.dy))
         
         #return  prob, momentum
     
@@ -211,10 +213,17 @@ class QM:
         if type == 'energy':
 
             plt.plot(self.data_energy)
+            plt.title('Energy')
             plt.show()
             plt.plot(self.beam_energy)
+            plt.title('beam energy')
             plt.show()
             plt.plot(self.data_current)
+            plt.title('Quantum Current')
+            plt.show()
+            plt.plot(self.data_position)
+            plt.title('Position')
+            plt.show()
             #exp= []
             # for i in range(1,len(data_time)):
             #     #fix psire because not at right moment

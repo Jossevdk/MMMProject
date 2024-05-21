@@ -172,14 +172,14 @@ class QM:
 
         #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V())*(self.PsiRe+1j*self.PsiIm))
         #energy = np.sum((self.PsiRe-1j*self.PsiIm)*((-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm))+self.potential.V())*(self.PsiRe+1j*self.PsiIm))
-        energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
+        energy = np.trapz((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)), dx=self.dy)
         #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)*(self.PsiRe+1j*self.PsiIm))) #+ (self.PsiRe-1j*self.PsiIm)*(self.potential.V())*(self.PsiRe+1j*self.PsiIm))
         #energy = np.sum((np.conj(Psi))*(-self.hbar**2/(2*self.m)*self.diff(Psi)*(Psi)) +np.conj(Psi)*self.potential.V()*Psi)
-        beam_energy = np.sum(np.conj(Psi)*(-self.q*self.r *E*(Psi)))
+        beam_energy = np.trapz(np.conj(Psi)*(-self.q*self.r *E*(Psi)),dx = self.dy )
 
         self.data_time.append(n*self.dt)
         self.data_prob.append(prob)
-        self.data_mom.append(np.sum(momentum))
+        self.data_mom.append(np.trapz(momentum, dx= self.dy))
         self.data_energy.append(energy)
         self.beamenergy.append(beam_energy)
 
@@ -216,11 +216,11 @@ class QM:
         momentum[-1] = 0
 
         prob = self.PsiRe**2  + PsiImhalf**2
-        energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm))+ np.conj(Psi)*1j*self.hbar*q/(self.m)*a/(2*self.dy)*(np.roll(Psi,-1)-np.roll(Psi,1)))
+        energy = np.trapz((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm))+ np.conj(Psi)*1j*self.hbar*q/(self.m)*a/(2*self.dy)*(np.roll(Psi,-1)-np.roll(Psi,1)), dx = self.dy)
 
         self.data_time.append(n*self.dt)
         self.data_prob.append(prob)
-        self.data_mom.append(np.sum(momentum))
+        self.data_mom.append(np.trapz(momentum, dx = self.dy))
         self.data_energy.append(energy)
     
 
@@ -240,7 +240,7 @@ class QM:
         if type == 'position':
             exp = []
             for el in self.data_prob:
-                exp.append(np.sum(el*self.r*self.dy))
+                exp.append(np.trapz(el*self.r*self.dy, dx = self.dy))
             return(exp)
             # plt.plot(exp)
             # plt.show()            
@@ -395,7 +395,7 @@ dt = Sy*dy/c
 
 Ny = 500
 #Nt =20000
-Nt = 30000
+Nt = 100000
 N = 1 #particles/m2
 
 

@@ -64,7 +64,7 @@ dt = Sy*dy/c0
 Nx = 200
 Ny =200
 NyQM = int(3*Ny/4)
-Nt = 1000
+Nt = 10000
 
 pml_nl = 10
 pml_kmax = 4
@@ -74,13 +74,13 @@ Z0 = np.sqrt(mu0/eps0)
 
 
 xs = Nx*dx/4 
-ys = Ny*dy/4
+ys = Ny*dy/2
 
 
-J0 = 1
-tc = dt*Nt/5
+J0 = 1e4
+tc = dt*Nt/10
 sigma = tc/5
-QMxpos = 2*Nx//3  #this is where the quantum sheet is positioned
+QMxpos = Nx//2  #this is where the quantum sheet is positioned
 mpml = 10
 EMsource = EM.Source(xs, ys, J0, tc, sigma)
 EMscheme = EM.UCHIE(Nx, Ny, NyQM, dx, dy, dt, QMxpos,pml_kmax = pml_kmax, pml_nl = pml_nl,m=mpml)
