@@ -174,7 +174,7 @@ class UCHIE:
 dx = 1e-10 # m
 dy = 0.125e-9# ms
 
-Sy = 0.8 # !Courant number, for stability this should be smaller than 1
+Sy = 0.1 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c0
 #print(dt)
 Nx = 300
