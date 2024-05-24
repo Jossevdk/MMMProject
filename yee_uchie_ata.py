@@ -99,31 +99,47 @@ class Yee_UCHIE:
         self.data_uchie2 = []
         self.data_time = []
 
+        
+
 
         #Initialize the matrices for the UCHIE calculation, see eq (26)
         # ! It is even possible to just make the A_D and A_I matrix bigger instead of artificialy adding a row for the stitching
-        A_D = (np.diag(-1 * np.ones(self.nx+1), 0) + np.diag(np.ones(self.nx), 1))
-        A_I = (np.diag(1 * np.ones(self.nx+1), 0) + np.diag(np.ones(self.nx), 1))
+        A_D = np.diag(-1 * np.ones(self.nx+1), 0) + np.diag(np.ones(self.nx), 1)
+        A_D = A_D[:-1, :]
 
-        M1_2 = np.hstack((A_D/self.dx_f, A_I/dt))
-        M1_4 = np.hstack((eps0*A_I[:-1,:]/dt, A_D[:-1,:]/(mu*self.dx_f)))
-        
-        M1_1 = np.zeros(2*self.nx+2) # Stitching left interface
-        M1_1[0] = 1/self.dx_f
+
+        A_I = np.zeros((self.nx, self.nx + 1))
+        np.fill_diagonal(A_I, 1)
+        np.fill_diagonal(A_I[:,1:], 1)
+
+        M1_1 = np.zeros(2*self.nx+2) # extra row for Stitching left interface
+        M1_1[0] = 1/dx
         M1_1[self.nx+1] = 1/dt
 
-        M1 = np.vstack((M1_1, M1_2, M1_4))
+        M1_2 = np.hstack((A_D/self.dx_f, A_I/dt))
+
+        M1_3 = np.zeros(2*self.nx+2) # The row to stitch the right interface with Yee, see eq (30)
+        M1_3[self.nx] = -1/dx
+        M1_3[-1] = 1/dt
+
+        M1_4 = np.hstack((eps0*A_I/dt, A_D/(mu*self.dx_f)))
+
+        M1 = np.vstack((M1_1, M1_2, M1_3, M1_4))
         self.M1_inv = np.linalg.inv(M1)
         
-
-        M2_2 = np.hstack((-1/self.dx_f*A_D, 1/dt*A_I))
-        M2_4 = np.hstack((eps/dt*A_I[:-1, :], -1/(mu*self.dx_f)*A_D[:-1, :]))
-
         M2_1 = np.zeros(2*self.nx+2) # Stitching left interface
-        M2_1[0] = -1/self.dx_f
+        M2_1[0] = -1/dx
         M2_1[self.nx+1] = 1/dt
 
-        self.M2 = np.vstack((M2_1, M2_2, M2_4))
+        M2_2 = np.hstack((-1/self.dx_f*A_D, 1/dt*A_I))
+
+        M2_3 = np.zeros(2*self.nx+2) # The row to stich the right interface with Yee, see eq(30)
+        M2_3[self.nx] = 1/dx
+        M2_3[-1] = 1/dt
+        
+        M2_4 = np.hstack((eps/dt*A_I, -1/(mu*self.dx_f)*A_D))
+
+        self.M2 = np.vstack((M2_1, M2_2, M2_3, M2_4))
 
     
 
@@ -190,8 +206,8 @@ class Yee_UCHIE:
     def implicit_update(self, X, ex, Ex, Ey, Bz, Bz_old, x1, x2, y1, y2, nx, ny, n, N_sub, dx_f, dx, dy, dt, M1_inv, M2, eps, mu):
         Y = ex[:-1, 1:] + ex[1:, 1:] - ex[:-1, :-1] - ex[1:, :-1]
             
-        U_left = 1/dy*(ex[0, 1: ] + Ex[x1-1, y1+1:y2+1] - ex[0, :-1] - Ex[x1-1, y1:y2])  +  1/dx_f*(Ey[x1-1, y1:y2] + Ey[x1-2, y1:y2])  -  1/dt*(Bz[x1-1, y1:y2] - Bz_old[x1-1, y1:y2]) # UCHIE stitching left interface
-        U_right = 1/dy*(ex[-1, 1: ] + Ex[x2+1, y1+1:y2+1] - ex[-1, :-1] - Ex[x2+1, y1:y2])  -  1/dx_f*(Ey[x2, y1:y2] + Ey[x2+1, y1:y2])  -  1/dt*(Bz[x2+1, y1:y2] - Bz_old[x2+1, y1:y2]) # UCHIE stitching right interface
+        U_left = 1/dy*(ex[0, 1: ] + Ex[x1-1, y1+1:y2+1] - ex[0, :-1] - Ex[x1-1, y1:y2])  +  1/dx*(Ey[x1-1, y1:y2] + Ey[x1-2, y1:y2])  -  1/dt*(Bz[x1-1, y1:y2] - Bz_old[x1-1, y1:y2]) # UCHIE stitching left interface
+        U_right = 1/dy*(ex[-1, 1: ] + Ex[x2+1, y1+1:y2+1] - ex[-1, :-1] - Ex[x2+1, y1:y2])  -  1/dx*(Ey[x2, y1:y2] + Ey[x2+1, y1:y2])  -  1/dt*(Bz[x2+1, y1:y2] - Bz_old[x2+1, y1:y2]) # UCHIE stitching right interface
 
         X = M1_inv@M2@X + M1_inv@np.vstack((U_left, Y/dy, U_right, np.zeros((nx, ny))))
 
@@ -286,9 +302,9 @@ class Yee_UCHIE:
 
 
 ########## Fill in the parameters here ################
-Nx = 500
-Ny = 500
-Nt = 500
+Nx = 400
+Ny = 400
+Nt = 400
 
 dx = 0.25e-10 # m
 dy = 0.25e-10 # ms
