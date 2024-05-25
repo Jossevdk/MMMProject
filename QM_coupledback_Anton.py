@@ -64,7 +64,7 @@ dt = Sy*dy/c0
 Nx = 200
 Ny =200
 NyQM = int(3*Ny/4)
-Nt = 10000
+Nt = 30000
 
 pml_nl = 10
 pml_kmax = 4
@@ -77,7 +77,7 @@ xs = Nx*dx/4
 ys = Ny*dy/2
 
 
-J0 = 1e4
+J0 = 1
 tc = dt*Nt/10
 sigma = tc/5
 QMxpos = Nx//2  #this is where the quantum sheet is positioned

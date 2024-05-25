@@ -336,11 +336,18 @@ class Yee_UCHIE:
         subgrid1 = [self.x1, self.x2, self.y1, self.y2]
         scax1 = ax.imshow(self.data_uchie1[0], vmin=-v, vmax=v, origin='lower', extent=subgrid1)
         rect1=patch.Rectangle((self.x1, self.y1),self.x2-self.x1, self.y2-self.y1, alpha = 0.05, facecolor="grey", edgecolor="black")
+        ymin = (int(1/2*(self.Ny-self.ny))+int(1/2*(self.ny-self.NyQM)))*dy
+        ymax = (Ny- int(1/2*(self.Ny-self.ny))-int(1/2*(self.ny-self.NyQM)))*dy
+        ax.vlines(self.x1+self.QMxpos1*self.dx, ymin=ymin, ymax = ymax, color='red', linewidth=1)
+
         ax.add_patch(rect1)
 
         subgrid2 = [self.x3, self.x4, self.y1, self.y2]
         scax2 = ax.imshow(self.data_uchie2[0], vmin=-v, vmax=v, origin='lower', extent=subgrid2)
         rect2=patch.Rectangle((self.x3, self.y1),self.x4-self.x3, self.y2-self.y1, alpha = 0.05, facecolor="grey", edgecolor="black")
+        ymin = (int(1/2*(self.Ny-self.ny))+int(1/2*(self.ny-self.NyQM)))*dy
+        ymax = (Ny- int(1/2*(self.Ny-self.ny))-int(1/2*(self.ny-self.NyQM)))*dy
+        ax.vlines(self.x3+self.QMxpos2*self.dx, ymin=ymin, ymax = ymax, color='red', linewidth=1)
         ax.add_patch(rect2)
 
         def animate_frame(i):

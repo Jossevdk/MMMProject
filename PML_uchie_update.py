@@ -165,7 +165,7 @@ class UCHIE:
         label = "Field"
         
         # ax.plot(int(source.x/dx), int(source.y/dy), color="purple", marker= "o", label="Source") # plot the source
-        self.data_E = self.data_e[::50]
+        self.data_E = self.data_E[::50]
         cax = ax.imshow(self.data_E[3],vmin = -2e-13, vmax = 2e-13)
         ax.set_title("T = 0")
 

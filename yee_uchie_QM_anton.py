@@ -187,8 +187,8 @@ class Yee_UCHIE:
 
             #Update QM schemes
             slice = int(1/2*(self.ny-self.NyQM))
-            self.QMscheme1.update(1e20*self.X1[self.QMxpos1,slice:-slice],time_step)
-            self.QMscheme2.update(1e20*self.X2[self.QMxpos2,slice:-slice],time_step)
+            self.QMscheme1.update(1e23*self.X1[self.QMxpos1,slice:-slice],time_step)
+            self.QMscheme2.update(1e23*self.X2[self.QMxpos2,slice:-slice],time_step)
 
 
             ### Field update in UCHIE region updated, bz and ey with implicit ###
@@ -302,10 +302,17 @@ class Yee_UCHIE:
         scax1 = ax.imshow(self.data_uchie1[0], vmin=-v, vmax=v, origin='lower', extent=subgrid1)
         rect1=patch.Rectangle((self.x1, self.y1),self.x2-self.x1, self.y2-self.y1, alpha = 0.05, facecolor="grey", edgecolor="black")
         ax.add_patch(rect1)
+        #slice = int(1/2*(self.ny-self.NyQM))
+        ymin = (int(1/2*(self.Ny-self.ny))+int(1/2*(self.ny-self.NyQM)))*dy
+        ymax = (Ny- int(1/2*(self.Ny-self.ny))-int(1/2*(self.ny-self.NyQM)))*dy
+        ax.vlines(self.x1+self.QMxpos1*self.dx, ymin=ymin, ymax = ymax, color='red', linewidth=1)
 
         subgrid2 = [self.x3, self.x4, self.y1, self.y2]
         scax2 = ax.imshow(self.data_uchie2[0], vmin=-v, vmax=v, origin='lower', extent=subgrid2)
         rect2=patch.Rectangle((self.x3, self.y1),self.x4-self.x3, self.y2-self.y1, alpha = 0.05, facecolor="grey", edgecolor="black")
+        ymin = (int(1/2*(self.Ny-self.ny))+int(1/2*(self.ny-self.NyQM)))*dy
+        ymax = (Ny- int(1/2*(self.Ny-self.ny))-int(1/2*(self.ny-self.NyQM)))*dy
+        ax.vlines(self.x3+self.QMxpos2*self.dx, ymin=ymin, ymax = ymax, color='red', linewidth=1)
         ax.add_patch(rect2)
 
         def animate_frame(i):
@@ -329,11 +336,11 @@ class Yee_UCHIE:
 
 
 ########## Fill in the parameters here ################
-Nx = 400
+Nx = 1000
 Ny = 400
-Nt = 500
+Nt = 100
 
-dx = 0.25e-10 # m
+dx = 0.1e-10 # m
 dy = 0.25e-10 # ms
 courant = 0.9 # !Courant number, for stability this should be smaller than 1
 dt = courant * 1/(np.sqrt(1/dx**2 + 1/dy**2)*ct.c)
@@ -355,8 +362,9 @@ NyQM = int(3*Ny/5)
 xs = 1/3*Nx*dx
 ys = Ny/2*dy
 tc = dt*Nt/4
-sigma = tc/10
-source = Source(xs, ys, 1, tc, sigma)
+sigma = tc/20
+J0 = 1e2
+source = Source(xs, ys, J0, tc, sigma)
 
 N = 10e7*dx #particles/m2
 #NyQM = int(2*Ny/3)
@@ -373,6 +381,6 @@ test = Yee_UCHIE(Nx, Ny, Nt, dx, dy, dt, Ly, n, N_sub, NyQM, x_sub1, x_sub2, eps
 test.calculate_fields()
 test.animate_field()
 
-QMscheme1.expvalues('energy')
-QMscheme2.expvalues('energy')
+# QMscheme1.expvalues('energy')
+# QMscheme2.expvalues('energy')
 
