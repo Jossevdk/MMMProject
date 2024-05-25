@@ -34,7 +34,7 @@ class Source:
 
 def genKy(Ny, Nx, pml_nl, m, dy):
     Ky = np.zeros((Nx+1, Ny+1))
-    kmax = -np.log(np.exp(-12))*(m+1)/(2*np.sqrt(ct.mu_0/ct.epsilon_0)*pml_nl*dy)
+    kmax = -np.log(np.exp(-16))*(m+1)/(2*np.sqrt(ct.mu_0/ct.epsilon_0)*pml_nl*dy)
     for iy in range(0, pml_nl):
         Ky[:,iy] = kmax*((pml_nl-1-iy)/pml_nl)**m
         Ky[:, -iy-1] = kmax*((pml_nl-1-iy)/pml_nl)**m
@@ -42,7 +42,7 @@ def genKy(Ny, Nx, pml_nl, m, dy):
 
 def genKx(Ny, Nx, pml_nl, m, dx):
     Kx = np.zeros((Nx+1, Ny+1))
-    kmax = -np.log(np.exp(-12))*(m+1)/(2*np.sqrt(ct.mu_0/ct.epsilon_0)*pml_nl*dx)
+    kmax = -np.log(np.exp(-16))*(m+1)/(2*np.sqrt(ct.mu_0/ct.epsilon_0)*pml_nl*dx)
     for ix in range(0, pml_nl):
         Kx[ix,:] = kmax*((pml_nl-1-ix)/pml_nl)**m
         Kx[-ix-1,:] = kmax*((pml_nl-1-ix)/pml_nl)**m
@@ -116,8 +116,8 @@ class Yee_UCHIE:
         self.x_sub2 = int(round(x_sub2/dx))
 
         # Capital letters are used for the fields in the YEE
-        pml_nl = 100
-        pml_m = 3
+        pml_nl = 20
+        pml_m = 4
         self.Ex = np.zeros((Nx+1, Ny+1))
         self.Ey = np.zeros((Nx, Ny))
         self.Bz = np.zeros((Nx+1, Ny))
@@ -128,12 +128,12 @@ class Yee_UCHIE:
         print(Kx, "\n")
         self.KxE = (2*np.full((Nx+1, Ny+1), ct.epsilon_0) - Kx*dt)/(2*np.full((Nx+1, Ny+1), ct.epsilon_0) + Kx*dt)
         self.KyE = (2*np.full((Nx+1, Ny+1), ct.epsilon_0) - Ky*dt)/(2*np.full((Nx+1, Ny+1), ct.epsilon_0) + Ky*dt)
-        self.KxB = (2*np.full((Nx+1, Ny+1), ct.mu_0) - Kx*dt)/(2*np.full((Nx+1, Ny+1), ct.mu_0) + Kx*dt)
-        self.KyB = (2*np.full((Nx+1, Ny+1), ct.mu_0) - Ky*dt)/(2*np.full((Nx+1, Ny+1), ct.mu_0) + Ky*dt)
+        self.KxB = (2*np.full((Nx+1, Ny+1), ct.mu_0) - ct.mu_0*Kx*dt/ct.epsilon_0)/(2*np.full((Nx+1, Ny+1), ct.mu_0) + ct.mu_0*Kx*dt/ct.epsilon_0)
+        self.KyB = (2*np.full((Nx+1, Ny+1), ct.mu_0) - ct.mu_0*Ky*dt/ct.epsilon_0)/(2*np.full((Nx+1, Ny+1), ct.mu_0) + ct.mu_0*Ky*dt/ct.epsilon_0)
         self.KxEB = (2*dt)/((2*np.full((Nx+1, Ny+1), ct.epsilon_0) + Kx*dt)*dx*ct.mu_0)
         self.KyEB = (2*dt)/((2*np.full((Nx+1, Ny+1), ct.epsilon_0) + Ky*dt)*dy*ct.mu_0)
-        self.KxBE = (2*ct.mu_0*dt)/((2*np.full((Nx+1, Ny+1), ct.mu_0) + Kx*dt)*dx)
-        self.KyBE = (2*ct.mu_0*dt)/((2*np.full((Nx+1, Ny+1), ct.mu_0) + Ky*dt)*dy)
+        self.KxBE = (2*ct.mu_0*dt)/((2*np.full((Nx+1, Ny+1), ct.mu_0) +ct.mu_0*Kx*dt/ct.epsilon_0)*dx)
+        self.KyBE = (2*ct.mu_0*dt)/((2*np.full((Nx+1, Ny+1), ct.mu_0) + ct.mu_0*Ky*dt/ct.epsilon_0)*dy)
         
         # small letters used for fields in UCHIE
         self.X1 = np.zeros((2*self.nx+2, self.ny))
@@ -364,9 +364,9 @@ class Yee_UCHIE:
 
 
 ########## Fill in the parameters here ################
-Nx = 500
-Ny = 500
-Nt = 800
+Nx = 301
+Ny = 301
+Nt = 500
 
 dx = 0.25e-10 # m
 dy = 0.25e-10 # ms
