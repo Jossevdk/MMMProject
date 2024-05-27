@@ -257,7 +257,8 @@ class UCHIE:
         freq_axis, FT = self.fourier(Hz, omega_max, padding, self.dt/c0)
         omega = freq_axis*2*np.pi
         #bb = source_1.w_max
-
+        plt.plot(FT)
+        plt.show()
         # omega = 2*np.pi*ft.rfftfreq(10000, self.dt)  # Get the frequency
         # Hz_freq = ft.rfft(Hz, 10000)
 

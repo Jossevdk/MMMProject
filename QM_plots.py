@@ -383,7 +383,7 @@ mu0 = ct.mu_0
 hbar = ct.hbar #J⋅s
 m = ct.electron_mass*0.15
 q = -ct.elementary_charge 
-
+print(q)
 #dy = 0.125*10**(-9)
 dy = 0.25e-10
 #dy = 0.1

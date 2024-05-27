@@ -92,7 +92,7 @@ class UCHIE:
         slice = int(1/2*(self.Ny-self.NyQM))
         #self.Y[self.QMxpos, slice :-slice]+= -2 * (1 / Z0) * JQM
         self.Y[self.Nx+2:2*self.Nx+2 , :] = self.A2@(self.ex0[:, 1:] - self.ex0[:, :-1])/self.dy
-        self.Y[self.Nx+2 + int(source.x / self.dx), int(source.y / self.dy)] += -2 * (1 / Z0) * source.J(n * self.dt / c0)/self.dx*self.dy
+        self.Y[self.Nx+2 + int(source.x / self.dx), int(source.y / self.dy)] += -2 * (1 / Z0) * source.J(n * self.dt / c0)/self.dx/self.dy
         
 
         self.X = self.M_N @ self.X + self.M_inv @ self.Y
