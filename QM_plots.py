@@ -257,8 +257,7 @@ class QM:
             for el in self.data_prob:
                 exp.append(np.trapz(el*self.r*self.dy, dx = self.dy))
             return(exp)
-            # plt.plot(exp)
-            # plt.show()            
+                       
         if type == 'momentum':
             plt.plot(self.data_mom)
             plt.show()
@@ -273,66 +272,18 @@ class QM:
             self.lhs = []
             self.rhs = []
             for i in range(1,len(self.data_time)-1):
-                #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
-
-                #find curr at n trough interpol:
+        
                 datacurrhalf = 1/2* (self.datacurr[i] + self.datacurr[i-1])
                 
-                #for rho deriv in time puts time also at n, for J deriv puts pos at r
                 val1 = -(datacurrhalf- np.roll(datacurrhalf,1))[1:]/dy
                 self.lhs.append(val1)
-                #exp.append(np.sum(val[1:-1]))
-        # if type == 'dens':
-        #     self.rhs= []
-        #     for i in range(1,len(self.data_time)-1):
-                #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
-
-                #find curr at n trough interpol:
-                
-                #for rho deriv in time puts time also at n, for J deriv puts pos at r
+       
                 val2 = self.q*(self.data_prob[i] - self.data_prob[i-1])[1:]/dt
                 self.rhs.append(val2)
-                #exp.append(np.sum(val[1:-1]))
+                
     
 
         
-        # if type == 'continuity':
-        #     exp = []
-        #     for i in range(1,len(data_time)-1):
-        #         #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
-
-        #         #find curr at n trough interpol:
-        #         datacurrhalf = 1/2* (datacurr[i] + datacurr[i-1])
-                
-        #         #for rho deriv in time puts time also at n, for J deriv puts pos at r
-        #         val = (dataprob[i] - dataprob[i-1])[1:]/dt+(datacurrhalf- np.roll(datacurrhalf,1))[1:]/dy
-        #         exp.append(val)
-        #         #exp.append(np.sum(val[1:-1]))
-        # if type == 'J':
-        #     exp = []
-        #     for i in range(1,len(data_time)-1):
-        #         #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
-
-        #         #find curr at n trough interpol:
-        #         datacurrhalf = 1/2* (datacurr[i] + datacurr[i-1])
-                
-        #         #for rho deriv in time puts time also at n, for J deriv puts pos at r
-        #         val = -(datacurrhalf- np.roll(datacurrhalf,1))[1:]/dy
-        #         exp.append(val)
-        #         #exp.append(np.sum(val[1:-1]))
-        # if type == 'dens':
-        #     exp = []
-        #     for i in range(1,len(data_time)-1):
-        #         #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
-
-        #         #find curr at n trough interpol:
-                
-        #         #for rho deriv in time puts time also at n, for J deriv puts pos at r
-        #         val = (dataprob[i] - dataprob[i-1])[1:]/dt
-        #         exp.append(val)
-        #         #exp.append(np.sum(val[1:-1]))
-
-        #return exp
 
 
 
@@ -342,6 +293,9 @@ class QM:
     def heatmap (self):
         probsel = self.data_prob[::100]
         plt.imshow(np.array(probsel).T)
+        plt.xlabel('time [s]')
+        plt.ylabel('Electron Position [m]')
+        plt.colorbar(label = r'$|\psi|^2$')
         plt.show()
 
 
@@ -423,6 +377,9 @@ class Plotting:
             ax3.set_title("Kinetic + Potential Energy")
             ax3.set_xlabel('t [s]')
             ax3.set_ylabel('E [J]')
+            plt.subplots_adjust(wspace=0.5)
+            plt.tight_layout()
+            plt.show()
 
         if self.type == 'Continuity': 
             QMscheme1.expvalues(self.type)
@@ -430,6 +387,7 @@ class Plotting:
 
         if self.type == 'Heatmap':
             QMscheme1.heatmap()
+
         if self.type == 'Compare':
             if type == 'gauges':
                 fig, (ax1, ax2, ax3) = plt.subplots(1, 3,figsize=(15, 5))
@@ -465,6 +423,7 @@ class Plotting:
                 ax3.legend()
 
                 plt.subplots_adjust(wspace=0.5)
+                plt.tight_layout()
                 plt.show()
             elif type == 'order':
                 fig, (ax1, ax2, ax3) = plt.subplots(1, 3,figsize=(15, 5))
@@ -496,49 +455,8 @@ class Plotting:
                 ax3.legend()
 
                 plt.subplots_adjust(wspace=0.5)
+                plt.tight_layout()
                 plt.show()
-    
-
-
-    
-# def animate_curve(data):
-#     fig, ax = plt.subplots()
-#     xdata, ydata = [], []
-#     ln, = plt.plot([], [], 'r-')
-#     def init():
-#         ax.set_xlim(0, len(data[0]))
-#         ax.set_ylim(np.min(data), np.max(data))
-#         return ln,
-
-#     def update(frame):
-#         xdata=np.arange(len(data[frame]))
-#         ydata=data[frame]
-#         ln.set_data(xdata, ydata)
-#         return ln,
-
-#     ani = FuncAnimation(fig, update, frames=len(data), init_func=init, interval=30)
-#     plt.show()
-
-# def animate_two_curves(data1, data2):
-#     fig, ax = plt.subplots()
-#     xdata, ydata = [], []
-#     ln, = plt.plot([], [], 'r-')
-#     ln2, = plt.plot([], [], 'b-')
-#     def init():
-#         ax.set_xlim(0, len(data1[0]))
-#         ax.set_ylim(np.min(data1), np.max(data1))
-#         return ln, ln2
-
-#     def update(frame):
-#         xdata=np.arange(len(data1[frame]))
-#         ydata=data1[frame]
-#         ln.set_data(xdata, ydata)
-#         ydata=data2[frame]
-#         ln2.set_data(xdata, ydata)
-#         return ln, ln2
-
-#     ani = FuncAnimation(fig, update, frames=len(data1), init_func=init, interval=30)
-#     plt.show()
 
 eps0 = ct.epsilon_0
 mu0 = ct.mu_0
@@ -565,41 +483,41 @@ alpha = 0
 potential = Potential(m,omegaHO, Ny, dy)
 potential.V()
 
-gauge = 'velocity'
-amplitude = 1e8
-field_type = 'sinusoidal'
-order = 'fourth'
+# gauge = 'velocity'
+# amplitude = 1e8
+# field_type = 'sinusoidal'
+# order = 'fourth'
 
-QMscheme1 = QM(order,Ny, Nt, dy, dt, hbar, m, q, alpha, potential, omegaHO, N, gauge, omegafield = omegaHO, amplitude = amplitude, field_type = field_type)
-QMscheme1.calcwave()
-
-
-gauge = 'length'
-amplitude = 1e8
-field_type = 'sinusoidal'
-order = 'fourth'
-
-QMscheme2 = QM(order,Ny, Nt, dy, dt, hbar, m, q, alpha, potential, omegaHO, N, gauge, omegafield = omegaHO, amplitude = amplitude, field_type = field_type)
-QMscheme2.calcwave()
+# QMscheme1 = QM(order,Ny, Nt, dy, dt, hbar, m, q, alpha, potential, omegaHO, N, gauge, omegafield = omegaHO, amplitude = amplitude, field_type = field_type)
+# QMscheme1.calcwave()
 
 
-plot = Plotting('Compare')
-plot.plot(QMscheme1,QMscheme2,'gauges')
+# gauge = 'length'
+# amplitude = 1e8
+# field_type = 'sinusoidal'
+# order = 'fourth'
 
-###########################################
+# QMscheme2 = QM(order,Ny, Nt, dy, dt, hbar, m, q, alpha, potential, omegaHO, N, gauge, omegafield = omegaHO, amplitude = amplitude, field_type = field_type)
+# QMscheme2.calcwave()
+
+
+# plot = Plotting('Compare')
+# plot.plot(QMscheme1,QMscheme2,'gauges')
+
+# ###########################################
 
 
 
-gauge = 'length'
-amplitude = 1e8
-field_type = 'sinusoidal'
-order = 'second'
+# gauge = 'length'
+# amplitude = 1e8
+# field_type = 'sinusoidal'
+# order = 'second'
 
-QMscheme3 = QM(order,Ny, Nt, dy, dt, hbar, m, q, alpha, potential, omegaHO, N, gauge, omegafield = omegaHO, amplitude = amplitude, field_type = field_type)
-QMscheme3.calcwave()
+# QMscheme3 = QM(order,Ny, Nt, dy, dt, hbar, m, q, alpha, potential, omegaHO, N, gauge, omegafield = omegaHO, amplitude = amplitude, field_type = field_type)
+# QMscheme3.calcwave()
 
-plot = Plotting('Compare')
-plot.plot(QMscheme1,QMscheme2,'order')
+# plot = Plotting('Compare')
+# plot.plot(QMscheme1,QMscheme2,'order')
 
 
 #################################################
