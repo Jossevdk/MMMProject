@@ -120,12 +120,13 @@ class Yee_UCHIE:
         pml_m = 4
         self.Ex = np.zeros((Nx+1, Ny+1))
         self.Ey = np.zeros((Nx, Ny))
+
         self.Bz = np.zeros((Nx+1, Ny))
         self.Bzx = np.zeros((Nx+1, Ny))
         self.Bzy = np.zeros((Nx+1, Ny))
         Ky = genKy(Ny, Nx, pml_nl, pml_m, dy)
         Kx = genKx(Ny, Nx, pml_nl, pml_m, dx)
-        print(Kx, "\n")
+        #print(Kx, "\n")
         self.KxE = (2*np.full((Nx+1, Ny+1), ct.epsilon_0) - Kx*dt)/(2*np.full((Nx+1, Ny+1), ct.epsilon_0) + Kx*dt)
         self.KyE = (2*np.full((Nx+1, Ny+1), ct.epsilon_0) - Ky*dt)/(2*np.full((Nx+1, Ny+1), ct.epsilon_0) + Ky*dt)
         self.KxB = (2*np.full((Nx+1, Ny+1), ct.mu_0) - ct.mu_0*Kx*dt/ct.epsilon_0)/(2*np.full((Nx+1, Ny+1), ct.mu_0) + ct.mu_0*Kx*dt/ct.epsilon_0)
@@ -142,6 +143,9 @@ class Yee_UCHIE:
         self.ex2 = np.zeros((self.nx+1, self.ny+1))
         #@ ey = X[:nx+1, :]
         #@ bz = X[nx+1:, :]
+
+        self.ey1mid = np.zeros((self.nx+1,self.ny ))
+        self.ey2mid = np.zeros((self.nx+1,self.ny ))
 
         self.data_yee = []
         self.data_uchie1 = []
@@ -222,13 +226,14 @@ class Yee_UCHIE:
             self.Bz = self.Bzx + self.Bzy
             #Update QM schemes
             slice = int(1/2*(self.ny-self.NyQM))
-            self.QMscheme1.update(1e20*self.X1[self.QMxpos1,slice:-slice],time_step)
-            self.QMscheme2.update(1e20*self.X2[self.QMxpos2,slice:-slice],time_step)
+
+            self.QMscheme1.update(self.ey1mid[self.QMxpos1,slice:-slice],time_step)
+            self.QMscheme2.update(self.ey2mid[self.QMxpos2,slice:-slice],time_step)
 
 
             ### Field update in UCHIE region updated, bz and ey with implicit ###
-            self.X1, self.ex1, self.ey1, self.bz1 = self.implicit_update(self.X1, self.ex1, self.Ex, self.Ey, self.Bz, Bz_old, x1, x2, y1, y2, self.nx, self.ny, self.n, self.N_sub, self.dx_f, self.dx, self.dy, self.dt, self.M1_inv, self.M2, self.eps, self.mu, QMscheme1.J, QMxpos1)
-            self.X2, self.ex2, self.ey2, self.bz2 = self.implicit_update(self.X2, self.ex2, self.Ex, self.Ey, self.Bz, Bz_old, x3, x4, y1, y2, self.nx, self.ny, self.n, self.N_sub, self.dx_f, self.dx, self.dy, self.dt, self.M1_inv, self.M2, self.eps, self.mu, QMscheme2.J, QMxpos2)
+            self.X1, self.ex1, self.ey1, self.bz1, self.ey1mid = self.implicit_update(self.X1, self.ex1, self.Ex, self.Ey, self.Bz, Bz_old, x1, x2, y1, y2, self.nx, self.ny, self.n, self.N_sub, self.dx_f, self.dx, self.dy, self.dt, self.M1_inv, self.M2, self.eps, self.mu,QMscheme1.Jmid, QMxpos1)
+            self.X2, self.ex2, self.ey2, self.bz2 , self.ey2mid= self.implicit_update(self.X2, self.ex2, self.Ex, self.Ey, self.Bz, Bz_old, x3, x4, y1, y2, self.nx, self.ny, self.n, self.N_sub, self.dx_f, self.dx, self.dy, self.dt, self.M1_inv, self.M2, self.eps, self.mu, QMscheme2.Jmid, QMxpos2)
 
             
             ### Update Ex and self.Ey in the Yee region ###
@@ -240,10 +245,15 @@ class Yee_UCHIE:
 
 
             ### Save the data's ###
-            self.data_yee.append(copy.deepcopy(self.Bz.T))
-            self.data_uchie1.append(copy.deepcopy(self.bz1.T))
-            self.data_uchie2.append(copy.deepcopy(self.bz2.T))
-            self.data_time.append(time_step*self.dt)
+            if time_step%(self.Nt/1000)==0:
+                #print(n)
+                # self.data_yee.append(copy.deepcopy(self.Bz.T))
+                # self.data_uchie1.append(copy.deepcopy(self.bz1.T))
+                # self.data_uchie2.append(copy.deepcopy(self.bz2.T))
+                self.data_yee.append(self.Bz.T)
+                self.data_uchie1.append(self.bz1.T)
+                self.data_uchie2.append(self.bz2.T)
+                self.data_time.append(time_step*self.dt)
 
 
 
@@ -265,7 +275,12 @@ class Yee_UCHIE:
     #! I followed the stitching procedure from the paper, the stitching from the syllabus is little bit different
     def implicit_update(self, X, ex, Ex, Ey, Bz, Bz_old, x1, x2, y1, y2, nx, ny, n, N_sub, dx_f, dx, dy, dt, M1_inv, M2, eps, mu, JQM, QMxpos):
         Y = ex[:-1, 1:] + ex[1:, 1:] - ex[:-1, :-1] - ex[1:, :-1]
-            
+
+        slice = int(1/2*(self.ny-self.NyQM))
+        Y[QMxpos, slice :-slice]+= -2 * (1 / Z0) * JQM
+        
+        eyold = X[:nx+1, :]
+
         U_left = 1/dy*(ex[0, 1: ] + Ex[x1-1, y1+1:y2+1] - ex[0, :-1] - Ex[x1-1, y1:y2])  +  1/dx*(Ey[x1-1, y1:y2] + Ey[x1-2, y1:y2])  -  1/dt*(Bz[x1-1, y1:y2] - Bz_old[x1-1, y1:y2]) # UCHIE stitching left interface
         U_right = 1/dy*(ex[-1, 1: ] + Ex[x2+1, y1+1:y2+1] - ex[-1, :-1] - Ex[x2+1, y1:y2])  -  1/dx*(Ey[x2, y1:y2] + Ey[x2+1, y1:y2])  -  1/dt*(Bz[x2+1, y1:y2] - Bz_old[x2+1, y1:y2]) # UCHIE stitching right interface
 
@@ -285,10 +300,10 @@ class Yee_UCHIE:
         ex[:, -1] = ex[:, -1]  +  dt/(mu*eps*dy) * (A_pol @ Bz[x1:x2+1, y2] - bz[:, -1]) # Stitching upper interface @ Uchie
         ex[:, 0] = ex[:, 0]  -  dt/(mu*eps*dy) * (A_pol @ Bz[x1:x2+1, y1-1] - bz[:, 0]) # Stitching down interface @ Uchie
 
-        slice = int(1/2*(self.ny-self.NyQM))
-        Y[QMxpos, slice :-slice]+= -2 * (1 / Z0) * JQM
+        
+        eymid = 1/2*(eyold+ey)
 
-        return X, ex, ey, bz
+        return X, ex, ey, bz, eymid
     
 
 
@@ -326,7 +341,11 @@ class Yee_UCHIE:
         ys = self.source.y
         
         # v = source.J0*dt * 0.05
-        v = 3e-22
+        v = np.max(self.data_yee)*0.5
+        # vmax = np.percentile(electric_field, 95)
+        # v = source.J0*self.dx*self.dy/2*1000/Nt
+        #v = 1e2
+        
 
         ax.plot(xs, ys+0.5*dy, color="purple", marker= "o", label="Source") # plot the source
 
@@ -338,7 +357,7 @@ class Yee_UCHIE:
         rect1=patch.Rectangle((self.x1, self.y1),self.x2-self.x1, self.y2-self.y1, alpha = 0.05, facecolor="grey", edgecolor="black")
         ymin = (int(1/2*(self.Ny-self.ny))+int(1/2*(self.ny-self.NyQM)))*dy
         ymax = (Ny- int(1/2*(self.Ny-self.ny))-int(1/2*(self.ny-self.NyQM)))*dy
-        ax.vlines(self.x1+self.QMxpos1*self.dx, ymin=ymin, ymax = ymax, color='red', linewidth=1)
+        ax.vlines(self.x1+self.QMxpos1//n*self.dx, ymin=ymin, ymax = ymax, color='red', linewidth=1)
 
         ax.add_patch(rect1)
 
@@ -347,7 +366,7 @@ class Yee_UCHIE:
         rect2=patch.Rectangle((self.x3, self.y1),self.x4-self.x3, self.y2-self.y1, alpha = 0.05, facecolor="grey", edgecolor="black")
         ymin = (int(1/2*(self.Ny-self.ny))+int(1/2*(self.ny-self.NyQM)))*dy
         ymax = (Ny- int(1/2*(self.Ny-self.ny))-int(1/2*(self.ny-self.NyQM)))*dy
-        ax.vlines(self.x3+self.QMxpos2*self.dx, ymin=ymin, ymax = ymax, color='red', linewidth=1)
+        ax.vlines(self.x3+self.QMxpos2//n*self.dx, ymin=ymin, ymax = ymax, color='red', linewidth=1)
         ax.add_patch(rect2)
 
         def animate_frame(i):
@@ -373,7 +392,7 @@ class Yee_UCHIE:
 ########## Fill in the parameters here ################
 Nx = 301
 Ny = 301
-Nt = 500
+Nt = 100000
 
 dx = 0.25e-10 # m
 dy = 0.25e-10 # ms
@@ -382,13 +401,13 @@ dt = courant * 1/(np.sqrt(1/dx**2 + 1/dy**2)*ct.c)
 
 Ly = 3/5*Ny*dy
 n = 5 #@ numbers of Subgridding in one grid
-N_sub = 30 #@ How much grid you want to take to subgrid
+N_sub = 15 #@ How much grid you want to take to subgrid
 
 x_sub1 = Nx//3*dx #@ The locationwhere the first subgridding should happen
 x_sub2 = 2*Nx//3*dx #@ The locationwhere the first subgridding should happen
 
-QMxpos1 = N_sub//2
-QMxpos2 = N_sub//2
+QMxpos1 = n*N_sub//2
+QMxpos2 = n*N_sub//2
 
 
 NyQM = int(2*Ny/5)
@@ -398,9 +417,10 @@ xs = 1/4*Nx*dx
 ys = Ny/2*dy
 tc = dt*Nt/4
 sigma = tc/10
-source = Source(xs, ys, 1, tc, sigma)
+J0 = 1e2/dx/dy
+source = Source(xs, ys, J0, tc, sigma)
 
-N = 10e7*dx #particles/m2
+N = 10e7 #particles/m2
 #NyQM = int(2*Ny/3)
 order = 'fourth'
 omega = 50e14 #[rad/s]
@@ -415,6 +435,6 @@ test = Yee_UCHIE(Nx, Ny, Nt, dx, dy, dt, Ly, n, N_sub, NyQM, x_sub1, x_sub2, eps
 test.calculate_fields()
 test.animate_field()
 
-# QMscheme1.expvalues('energy')
-# QMscheme2.expvalues('energy')
+QMscheme1.expvalues('energy')
+QMscheme2.expvalues('energy')
 

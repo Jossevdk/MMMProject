@@ -85,6 +85,7 @@ class QM:
         self.omega =omega
         self.N=N
         self.gauge = gauge
+        self.field_type = field_type
         if gauge == 'length':
             if field_type ==  'gaussian':
 
@@ -116,6 +117,8 @@ class QM:
         self.data_mom=[]
         self.data_energy= []
         self.beamenergy = []
+        self.datacurr = []
+       
 
     def diff(self,psi):
         if self.order == 'second':
@@ -131,6 +134,17 @@ class QM:
             psi[-2]=0
         else:
             raise ValueError(f"Order schould be 'second' or 'fourth'")
+        
+        return psi
+    
+    def diff_for_energy(self,psi):
+        
+        psi= (-np.roll(psi,2) + 16*np.roll(psi,1) -30*psi + 16*np.roll(psi,-1)-np.roll(psi,-2))/(12*self.dy**2)
+        psi[0] = 0
+        psi[1]= 0
+        psi[-1] = 0
+        psi[-2]=0
+        
         
         return psi
 
@@ -172,7 +186,7 @@ class QM:
 
         #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V())*(self.PsiRe+1j*self.PsiIm))
         #energy = np.sum((self.PsiRe-1j*self.PsiIm)*((-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm))+self.potential.V())*(self.PsiRe+1j*self.PsiIm))
-        energy = np.trapz((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)), dx=self.dy)
+        energy = np.trapz((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff_for_energy(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)), dx=self.dy)
         #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)*(self.PsiRe+1j*self.PsiIm))) #+ (self.PsiRe-1j*self.PsiIm)*(self.potential.V())*(self.PsiRe+1j*self.PsiIm))
         #energy = np.sum((np.conj(Psi))*(-self.hbar**2/(2*self.m)*self.diff(Psi)*(Psi)) +np.conj(Psi)*self.potential.V()*Psi)
         beam_energy = np.trapz(np.conj(Psi)*(-self.q*self.r *E*(Psi)),dx = self.dy )
@@ -182,6 +196,7 @@ class QM:
         self.data_mom.append(np.trapz(momentum, dx= self.dy))
         self.data_energy.append(energy)
         self.beamenergy.append(beam_energy)
+        self.datacurr.append(self.J)
 
     def update_vel(self, n):
        
@@ -253,6 +268,31 @@ class QM:
             plt.plot(self.beamenergy)
             plt.plot(self.data_energy)
             plt.show()
+
+        if type == 'Continuity':
+            self.lhs = []
+            self.rhs = []
+            for i in range(1,len(self.data_time)-1):
+                #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
+
+                #find curr at n trough interpol:
+                datacurrhalf = 1/2* (self.datacurr[i] + self.datacurr[i-1])
+                
+                #for rho deriv in time puts time also at n, for J deriv puts pos at r
+                val1 = -(datacurrhalf- np.roll(datacurrhalf,1))[1:]/dy
+                self.lhs.append(val1)
+                #exp.append(np.sum(val[1:-1]))
+        # if type == 'dens':
+        #     self.rhs= []
+        #     for i in range(1,len(self.data_time)-1):
+                #rho is know at n+1/2, r, J is known at n+1/2, r+1/2
+
+                #find curr at n trough interpol:
+                
+                #for rho deriv in time puts time also at n, for J deriv puts pos at r
+                val2 = self.q*(self.data_prob[i] - self.data_prob[i-1])[1:]/dt
+                self.rhs.append(val2)
+                #exp.append(np.sum(val[1:-1]))
     
 
         
@@ -299,15 +339,10 @@ class QM:
     
   
 
-    # def heatmap (self,dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N):
-    #     if self.result == None:
-    #         res = qm.calc_wave( dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)
-    #     else:
-    #         res = self.result
-    #     prob = res[3]
-    #     probsel = prob[::100]
-    #     plt.imshow(np.array(probsel).T)
-    #     plt.show()
+    def heatmap (self):
+        probsel = self.data_prob[::100]
+        plt.imshow(np.array(probsel).T)
+        plt.show()
 
 
     def animate(self):
@@ -336,9 +371,136 @@ class QM:
     
         plt.show()
 
+    def animate_two_curves(self):
+        data1 = self.lhs[::100]
+        data2 = self.rhs[::100]
+        fig, ax = plt.subplots()
+        xdata, ydata = [], []
+        ln, = plt.plot([], [], 'r-')
+        ln2, = plt.plot([], [], 'b-')
+        def init():
+            ax.set_xlim(0, len(data1[0]))
+            ax.set_ylim(np.min(data1), np.max(data1))
+            return ln, ln2
+
+        def update(frame):
+            xdata=np.arange(len(data1[frame]))
+            ydata=data1[frame]
+            ln.set_data(xdata, ydata)
+            ydata=data2[frame]
+            ln2.set_data(xdata, ydata)
+            return ln, ln2
+
+        ani = FuncAnimation(fig, update, frames=len(data1), init_func=init, interval=30)
+        plt.show()
+
 ##########################################################
 
+class Plotting:
+    def __init__(self, type):
+        self.type = type
 
+    def plot(self, QMscheme1, QMscheme2=None, type=None):
+        if self.type == 'Expectation':
+            fig, (ax1, ax2, ax3) = plt.subplots(1, 3,figsize=(15, 3))
+            fig.suptitle("Results for a {0} pulse in the {1} gauge".format(QMscheme1.field_type, QMscheme1.gauge))
+            ax1.plot(QMscheme1.data_time[::50], QMscheme1.expvalues('position')[::50])
+            ax1.set_title('Position')
+            ax1.set_xlabel('t [s]')
+            ax1.set_ylabel('y [m]')
+            ymin, ymax = ax1.get_ylim()
+            ax1.set_ylim(ymin * 1.5, ymax * 1.5)
+
+            ax2.plot(QMscheme1.data_time[::50], QMscheme1.data_mom[::50])
+            ymin, ymax = ax2.get_ylim()
+            ax2.set_ylim(ymin * 1.5, ymax * 1.5)
+            ax2.set_xlabel('t [s]')
+            ax2.set_ylabel(r'$P_{kin}$ [$\frac{kg \cdot m}{s}$]')
+            ax2.set_title('Kinetic Momentum')
+
+
+            ax3.plot(QMscheme1.data_time[::50], QMscheme1.data_energy[::50])
+            ax3.set_title("Kinetic + Potential Energy")
+            ax3.set_xlabel('t [s]')
+            ax3.set_ylabel('E [J]')
+
+        if self.type == 'Continuity': 
+            QMscheme1.expvalues(self.type)
+            QMscheme1.animate_two_curves()
+
+        if self.type == 'Heatmap':
+            QMscheme1.heatmap()
+        if self.type == 'Compare':
+            if type == 'gauges':
+                fig, (ax1, ax2, ax3) = plt.subplots(1, 3,figsize=(15, 5))
+                fig.suptitle('Comparison between the Length an Velocity gauge')
+                ax1.plot(QMscheme2.data_time[::50], QMscheme2.expvalues('position')[::50], label = 'Length')
+                ax1.plot(QMscheme1.data_time[::50], QMscheme1.expvalues('position')[::50], label = 'Velocity')
+                ax1.set_xlabel('t [s]')
+                ax1.set_ylabel('y [m]')
+                ymin, ymax = ax1.get_ylim()
+                ax1.set_ylim(ymin * 1.5, ymax * 1.5)
+                ax1.set_title('Position')
+
+                ax2.plot(QMscheme2.data_time[::50], QMscheme2.data_mom[::50], label = 'Length')
+                ax2.plot(QMscheme1.data_time[::50], QMscheme1.data_mom[::50], label = 'Velocity')
+                ymin, ymax = ax2.get_ylim()
+                ax2.set_ylim(ymin * 1.5, ymax * 1.5)
+                ax2.set_title('Position')
+
+                ax2.set_xlabel('t [s]')
+                ax2.set_ylabel(r'$P_{kin}$ [$\frac{kg \cdot m}{s}$]')
+                ax2.set_title('Kinetic Momentum')
+
+                ax3.plot(QMscheme2.data_time[::50], QMscheme2.data_energy[::50], label = 'Length')
+                ax3.plot(QMscheme1.data_time[::50], QMscheme1.data_energy[::50], label = 'Velocity')
+                # ymin, ymax = ax3.get_ylim()
+                # ax3.set_ylim(ymin * 1.3, ymax * 1.3)
+                ax3.set_title("Kinetic + Potential Energy")
+                ax3.set_xlabel('t [s]')
+                ax3.set_ylabel('E [J]')
+
+                ax1.legend()
+                ax2.legend()
+                ax3.legend()
+
+                plt.subplots_adjust(wspace=0.5)
+                plt.show()
+            elif type == 'order':
+                fig, (ax1, ax2, ax3) = plt.subplots(1, 3,figsize=(15, 5))
+                fig.suptitle('Comparison between second and fourth order')
+                ax1.plot(QMscheme1.data_time[::50], QMscheme1.expvalues('position')[::50], label = 'Second')
+                ax1.plot(QMscheme2.data_time[::50], QMscheme2.expvalues('position')[::50], label  = 'Fourth')
+                ax1.set_xlabel('t [s]')
+                ax1.set_ylabel('y [m]')
+                ymin, ymax = ax1.get_ylim()
+                ax1.set_ylim(ymin * 1.5, ymax * 1.5)
+                ax1.set_title('Position')
+
+                ax2.plot(QMscheme1.data_time[::50], QMscheme1.data_mom[::50],label = 'Second')
+                ax2.plot(QMscheme2.data_time[::50], QMscheme2.data_mom[::50], label  = 'Fourth')
+                ymin, ymax = ax2.get_ylim()
+                ax2.set_ylim(ymin * 1.5, ymax * 1.5)
+                ax2.set_xlabel('t [s]')
+                ax2.set_ylabel(r'$P_{kin}$ [$\frac{kg \cdot m}{s}$]')
+                ax2.set_title('Kinetic Momentum')
+
+                ax3.plot(QMscheme1.data_time[::50], QMscheme1.data_energy[::50],label = 'Second')
+                ax3.plot(QMscheme2.data_time[::50], QMscheme2.data_energy[::50], label  = 'Fourth')
+                ax3.set_title("Kinetic + Potential Energy")
+                ax3.set_xlabel('t [s]')
+                ax3.set_ylabel('E [J]')
+
+                ax1.legend()
+                ax2.legend()
+                ax3.legend()
+
+                plt.subplots_adjust(wspace=0.5)
+                plt.show()
+    
+
+
+    
 # def animate_curve(data):
 #     fig, ax = plt.subplots()
 #     xdata, ydata = [], []
@@ -384,22 +546,20 @@ hbar = ct.hbar #J⋅s
 m = ct.electron_mass*0.15
 q = -ct.elementary_charge 
 
-#dy = 0.125*10**(-9)
+
 dy = 0.25e-10
-#dy = 0.1
-#assert(dy==dy2) # m
+
 c = ct.speed_of_light # m/s
 Sy = 1 # !Courant number, for stability this should be smaller than 1
 dt = Sy*dy/c
 
 
 Ny = 500
-#Nt =20000
 Nt = 100000
 N = 1 #particles/m2
 
 
-omegaHO = 50e14#*2*np.pi #[rad/s]
+omegaHO = 50e14 #[rad/s]
 alpha = 0
 
 potential = Potential(m,omegaHO, Ny, dy)
@@ -412,7 +572,7 @@ order = 'fourth'
 
 QMscheme1 = QM(order,Ny, Nt, dy, dt, hbar, m, q, alpha, potential, omegaHO, N, gauge, omegafield = omegaHO, amplitude = amplitude, field_type = field_type)
 QMscheme1.calcwave()
-#QMscheme1.animate()
+
 
 gauge = 'length'
 amplitude = 1e8
@@ -423,26 +583,12 @@ QMscheme2 = QM(order,Ny, Nt, dy, dt, hbar, m, q, alpha, potential, omegaHO, N, g
 QMscheme2.calcwave()
 
 
+plot = Plotting('Compare')
+plot.plot(QMscheme1,QMscheme2,'gauges')
+
+###########################################
 
 
-
-fig, (ax1, ax2, ax3) = plt.subplots(1, 3,figsize=(15, 5))
-fig.suptitle('Comparison between the Length an Velocity gauge')
-ax1.plot(QMscheme2.data_time[::50], QMscheme2.expvalues('position')[::50])
-ax1.plot(QMscheme1.data_time[::50], QMscheme1.expvalues('position')[::50])
-ax1.set_title('Position')
-
-ax2.plot(QMscheme2.data_time[::50], QMscheme2.data_mom[::50])
-ax2.plot(QMscheme1.data_time[::50], QMscheme1.data_mom[::50])
-ax2.set_title('Momentum')
-
-ax3.plot(QMscheme2.data_time[::50], QMscheme2.data_energy[::50])
-ax3.plot(QMscheme1.data_time[::50], QMscheme1.data_energy[::50])
-ax3.set_title("Kinetic + Potential Energy")
-plt.show()
-
-
-# #########################################
 
 gauge = 'length'
 amplitude = 1e8
@@ -452,75 +598,27 @@ order = 'second'
 QMscheme3 = QM(order,Ny, Nt, dy, dt, hbar, m, q, alpha, potential, omegaHO, N, gauge, omegafield = omegaHO, amplitude = amplitude, field_type = field_type)
 QMscheme3.calcwave()
 
-
-fig, (ax1, ax2, ax3) = plt.subplots(1, 3,figsize=(15, 5))
-fig.suptitle('Comparison between second and fourth order')
-ax1.plot(QMscheme3.data_time[::50], QMscheme3.expvalues('position')[::50])
-ax1.plot(QMscheme2.data_time[::50], QMscheme2.expvalues('position')[::50])
-ax1.set_title('Position')
-
-ax2.plot(QMscheme3.data_time[::50], QMscheme3.data_mom[::50])
-ax2.plot(QMscheme2.data_time[::50], QMscheme2.data_mom[::50])
-ax2.set_title('Momentum')
-
-ax3.plot(QMscheme3.data_time[::50], QMscheme3.data_energy[::50])
-ax3.plot(QMscheme2.data_time[::50], QMscheme2.data_energy[::50])
-ax3.set_title("Kinetic + Potential Energy")
-plt.show()
+plot = Plotting('Compare')
+plot.plot(QMscheme1,QMscheme2,'order')
 
 
+#################################################
 gauge = 'length'
-amplitude = 1e9
+amplitude = 1e10
 field_type = 'gaussian'
 order = 'fourth'
 
 QMscheme4 = QM(order,Ny, Nt, dy, dt, hbar, m, q, alpha, potential, omegaHO, N, gauge, omegafield = omegaHO, amplitude = amplitude, field_type = field_type)
 QMscheme4.calcwave()
 
+plot = Plotting('Expectation')
+plot.plot(QMscheme4)
 
-fig, (ax1, ax2, ax3) = plt.subplots(1, 3,figsize=(15, 3))
-fig.suptitle('Results for a gaussian pulse in the length gauge')
-ax1.plot(QMscheme4.data_time[::50], QMscheme4.expvalues('position')[::50])
+plot = Plotting('Continuity')
+plot.plot(QMscheme4)
 
-ax1.set_title('Position')
-
-ax2.plot(QMscheme4.data_time[::50], QMscheme4.data_mom[::50])
-
-ax2.set_title('Momentum')
-
-ax3.plot(QMscheme4.data_time[::50], QMscheme4.data_energy[::50])
-
-ax3.set_title("Kinetic + Potential Energy")
-plt.tight_layout()
-plt.show()
+plot = Plotting('Heatmap')
+plot.plot(QMscheme4)
 
 
-plt.plot(QMscheme4.beamenergy)
-plt.show()
-# # plt.imshow(probsel)
-# # plt.colorbar()
-# # #plt.plot(prob[8000])
-# # plt.show()
-# types = ['position', 'momentum', 'energy']
-# for type in types: 
-#     exp = qm.expvalues(dt, dy, type)
-#     expsel = exp[::100]
-#     #print(expsel)
-#     plt.plot(expsel)
-#     plt.title(type)
-#     plt.show()
 
-# div_current = qm.expvalues(dt, dy, 'J')[::100]
-# diff_density = qm.expvalues(dt, dy, 'dens')[::100]
-
-# animate_two_curves(div_current, diff_density)
-#     #print(expsel)
-
-# expsel = qm.expvalues(dt, dy, 'continuity')[::100]
-# #animate_curve(expsel)
-# #plt.imshow(np.array(expsel).T)
-
-# plt.show()
-
-
-# qm.heatmap(dy, dt, Ny, Nt,  hbar, m ,q ,potential, Efield,alpha,order,N)

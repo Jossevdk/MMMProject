@@ -80,6 +80,7 @@ class QM:
         #print(self.r.shape)
         self.PsiRe = (self.m*self.omega/(np.pi*self.hbar))**(1/4)*np.exp(-self.m*self.omega/(2*self.hbar)*(self.r-self.alpha*np.sqrt(2*self.hbar/(self.m*self.omega))*np.ones(self.Ny))**2)
         self.PsiIm = np.zeros(self.Ny)
+        self.Jmid = np.zeros(self.Ny)
         self.J = np.zeros(self.Ny)
         
         #print(self.PsiRe)
@@ -117,6 +118,7 @@ class QM:
         #E = efield.generate((n)*dt, omega=omegaHO)*np.ones(Ny)
         #efield*=100
         #E= 0
+        J_old= self.J
         PsiReo = self.PsiRe
         self.PsiRe = PsiReo -self.hbar*self.dt/(2*self.m)*self.diff(self.PsiIm) - self.dt/self.hbar*(self.q*self.r*efield-self.potential.V())*self.PsiIm
         #PsiRe = PsiRe -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(-potential.V())*PsiIm
@@ -140,6 +142,8 @@ class QM:
         self.J[0]=0
         self.J[-1]= 0
         self.J *= self.q*self.N
+
+        self.Jmid = (self.J+J_old)/2
         #print(self.J.shape)
 
         Psi = self.PsiRe+ 1j*PsiImhalf
