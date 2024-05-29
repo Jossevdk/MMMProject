@@ -408,7 +408,7 @@ class Yee_UCHIE:
 ########## Fill in the parameters here ################
 Nx = 301
 Ny = 301
-Nt = 5000
+Nt = 30000
 
 dx = 0.25e-10 # m
 dy = 0.25e-10 # ms

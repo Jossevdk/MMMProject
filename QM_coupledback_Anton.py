@@ -64,7 +64,7 @@ dt = Sy*dy/c0
 Nx = 200
 Ny =200
 NyQM = int(3*Ny/4)
-Nt = 30000
+Nt = 1000
 
 pml_nl = 10
 pml_kmax = 4
