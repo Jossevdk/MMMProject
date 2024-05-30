@@ -1,8 +1,12 @@
 import os
-os.environ["OMP_NUM_THREADS"] = "30"
-os.environ["MKL_NUM_THREADS"] = "30"
-os.environ["NUMEXPR_NUM_THREADS"] = "30"
-from sparse_dot_mkl import dot_product_mkl
+os.environ["OMP_NUM_THREADS"] = "20"
+os.environ["MKL_NUM_THREADS"] = "20"
+os.environ["NUMEXPR_NUM_THREADS"] = "20"
+try:
+    from sparse_dot_mkl import dot_product_mkl
+except ImportError:
+    print("No multithreaded dot product for sparse matrices...")
+    NO_MKL = True
 import numpy as np
 a = np.array([1,2,3,4,5])
 from scipy.constants import mu_0 as mu0
@@ -318,7 +322,10 @@ class Yee_UCHIE:
             U_left = 1/self.dy*(QMw.ex[0, 1: ] + self.Ex[QMw.x1-1, QMw.y1+1:QMw.y2+1] - QMw.ex[0, :-1] - self.Ex[QMw.x1-1, QMw.y1:QMw.y2])  +  1/self.dx*(self.Ey[QMw.x1-1, QMw.y1:QMw.y2] + self.Ey[QMw.x1-2, QMw.y1:QMw.y2])  -  1/self.dt*(self.Bz[QMw.x1-1, QMw.y1:QMw.y2] - self.Bz_old[QMw.x1-1, QMw.y1:QMw.y2]) # UCHIE stitching left interface
             U_right = 1/self.dy*(QMw.ex[-1, 1: ] + self.Ex[QMw.x2+1, QMw.y1+1:QMw.y2+1] - QMw.ex[-1, :-1] - self.Ex[QMw.x2+1, QMw.y1:QMw.y2])  -  1/self.dx*(self.Ey[QMw.x2, QMw.y1:QMw.y2] + self.Ey[QMw.x2+1, QMw.y1:QMw.y2])  -  1/self.dt*(self.Bz[QMw.x2+1, QMw.y1:QMw.y2] - self.Bz_old[QMw.x2+1, QMw.y1:QMw.y2]) # UCHIE stitching right interface
             
-            QMw.X = dot_product_mkl(QMw.M1_M2, QMw.X) + dot_product_mkl(QMw.M1_inv, np.vstack((U_left, Y, U_right, np.zeros((QMw.nx, QMw.ny))))) # Implicit update for e_y and b_z
+            if NO_MKL:
+                QMw.X = QMw.M1_M2 @ QMw.X + QMw.M1_inv @ np.vstack((U_left, Y, U_right, np.zeros((QMw.nx, QMw.ny)))) # Implicit update for e_y and b_z 
+            else:
+                QMw.X = dot_product_mkl(QMw.M1_M2, QMw.X) + dot_product_mkl(QMw.M1_inv, np.vstack((U_left, Y, U_right, np.zeros((QMw.nx, QMw.ny))))) # Implicit update for e_y and b_z
             QMw.ex[:, 1:-1] = QMw.ex[:, 1:-1]  +  self.dt/(mu0*eps0*self.dy) * (QMw.X[QMw.nx + 1:, 1:] - QMw.X[QMw.nx + 1:, :-1]) # Explicit update of e_x
             QMw.ex[:, -1] = QMw.ex[:, -1]  +  self.dt/(mu0*eps0*self.dy) * (QMw.A_pol @ self.Bz[QMw.x1:QMw.x2+1, QMw.y2] - QMw.X[QMw.nx + 1:, -1]) # Stitching upper interface @ Uchie
             QMw.ex[:, 0] = QMw.ex[:, 0]  -  self.dt/(mu0*eps0*self.dy) * (QMw.A_pol @ self.Bz[QMw.x1:QMw.x2+1, QMw.y1-1] - QMw.X[QMw.nx + 1:, 0]) # Stitching down interface @ Uchie
