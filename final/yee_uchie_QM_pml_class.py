@@ -9,7 +9,6 @@ except ImportError:
     print("No multithreaded dot product for sparse matrices...")
     NO_MKL = True
 import numpy as np
-a = np.array([1,2,3,4,5])
 from scipy.constants import mu_0 as mu0
 from scipy.constants import epsilon_0 as eps0
 import scipy.constants as ct
@@ -283,7 +282,7 @@ class Yee_UCHIE:
             self.stitching_E() # Stitching of the left and right interface to update E_y field in YEE at the interface
 
             # Save the data's
-            if time_step%(self.Nt/100)==0:
+            if time_step%(self.Nt/500)==0:
                 self.data_yee.append(self.Bz.T)
                 for data, QMw in zip(self.data_uchie, self.QMwires):
                     data.append(QMw.X[QMw.nx + 1:, :].T)

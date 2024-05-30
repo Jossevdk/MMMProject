@@ -218,15 +218,24 @@ class QM:
 
             plt.plot(self.data_energy)
             plt.title('Energy')
+            plt.xlabel('time [s]')
+            plt.ylabel('Energy [J]')
             plt.show()
+            
             plt.plot(self.beam_energy)
             plt.title('beam energy')
+            plt.xlabel('time [s]')
+            plt.ylabel('Energy [J]')
             plt.show()
             plt.plot(self.data_current)
             plt.title('Quantum Current')
+            plt.xlabel('time [s]')
+            plt.ylabel('Current [1/s]')
             plt.show()
             plt.plot(self.data_position)
             plt.title('Position')
+            plt.xlabel('time [s]')
+            plt.ylabel('Position [m]')
             plt.show()
             #exp= []
             # for i in range(1,len(data_time)):
@@ -275,7 +284,13 @@ class QM:
         #         #exp.append(np.sum(val[1:-1]))
 
         #return exp
-
+    def heatmap (self):
+        probsel = self.data_prob[::100]
+        plt.imshow(np.array(probsel).T)
+        plt.xlabel('time [s]')
+        plt.ylabel('Electron Position [m]')
+        plt.colorbar(label = r'$|\psi|^2$')
+        plt.show()
 
 
     

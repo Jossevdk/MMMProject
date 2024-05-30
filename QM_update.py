@@ -203,10 +203,15 @@ class QM:
             for el in self.data_prob:
                 exp.append(np.sum(el*self.r*self.dy))
             plt.plot(exp)
+            plt.xlabel('time [s]')
+            plt.ylabel('position [m]')
             plt.show()            
         if type == 'momentum':
             plt.plot(self.data_mom)
+            plt.xlabel('time [s]')
+            plt.ylabel('momentum [kg m/s]')
             plt.show()
+            
             # exp = []
             # # for i in range(len(data_time)-1):
             # #     val = 1/2*((1/2*(np.roll(dataRe[i+1], -1) + np.roll(dataRe[i],-1)) - 1j*np.roll(dataIm[i],-1)) + (1/2*(dataRe[i+1]+ dataRe[i]) - 1j*dataIm[i]))*((-1j*hbar/(2*dy)*(np.roll(dataRe[i+1],-1) +np.roll(dataRe[i],-1)-dataRe[i+1]- dataRe[i]))+hbar/dy*(np.roll(dataIm[i],-1)-dataIm[i]))
@@ -218,15 +223,24 @@ class QM:
 
             plt.plot(self.data_energy)
             plt.title('Energy')
+            plt.xlabel('time [s]')
+            plt.ylabel('Energy [J]')
             plt.show()
+            
             plt.plot(self.beam_energy)
             plt.title('beam energy')
+            plt.xlabel('time [s]')
+            plt.ylabel('Energy [J]')
             plt.show()
             plt.plot(self.data_current)
             plt.title('Quantum Current')
+            plt.xlabel('time [s]')
+            plt.ylabel('Current [1/s]')
             plt.show()
             plt.plot(self.data_position)
             plt.title('Position')
+            plt.xlabel('time [s]')
+            plt.ylabel('Position [m]')
             plt.show()
             #exp= []
             # for i in range(1,len(data_time)):
