@@ -2,6 +2,7 @@ import os
 os.environ["OMP_NUM_THREADS"] = "20"
 os.environ["MKL_NUM_THREADS"] = "20"
 os.environ["NUMEXPR_NUM_THREADS"] = "20"
+NO_MKL = False
 try:
     from sparse_dot_mkl import dot_product_mkl
 except ImportError:
