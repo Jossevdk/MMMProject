@@ -314,7 +314,7 @@ class Yee_UCHIE:
             Y = QMw.ex[:-1, 1:] + QMw.ex[1:, 1:] - QMw.ex[:-1, :-1] - QMw.ex[1:, :-1]
             slice = int(1/2*(QMw.ny-QMw.QMscheme.Ny))
             if self.coupled:
-                Y[QMw.QMxpos, slice :-slice]+= -2 * (1 / Z0) * QMw.QMscheme.Jmid
+                Y[QMw.QMxpos, slice :-slice]+= -2 * (1 / eps0) * QMw.QMscheme.Jmid
             
             eyold = QMw.X[:QMw.nx+1, :]
             
