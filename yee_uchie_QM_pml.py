@@ -258,7 +258,8 @@ class Yee_UCHIE:
             #Update QM schemes
             slice = int(1/2*(self.ny-self.NyQM))
             for QMw in self.QMwires:
-                QMw.QMscheme.update(QMw.eymid[QMw.QMxpos, slice:-slice], time_step)
+                QMw.QMscheme.update(QMw.ey[QMw.QMxpos, slice:-slice], QMw.eymid[QMw.QMxpos, slice:-slice], time_step)
+            
             
             ### Field update in UCHIE region updated, bz and ey with implicit ###
             self.uchie_update()
@@ -300,7 +301,7 @@ class Yee_UCHIE:
         for QMw in self.QMwires:
             Y = QMw.ex[:-1, 1:] + QMw.ex[1:, 1:] - QMw.ex[:-1, :-1] - QMw.ex[1:, :-1]
             slice = int(1/2*(self.ny-self.NyQM))
-            Y[QMw.QMxpos, slice :-slice]+= +2 * (1 / Z0) * QMw.QMscheme.Jmid
+            Y[QMw.QMxpos, slice :-slice]+= +2 * (1 / Z0) * QMw.QMscheme.J
             
             eyold = QMw.X[:self.nx+1, :]
             
@@ -312,6 +313,7 @@ class Yee_UCHIE:
             QMw.ex[:, -1] = QMw.ex[:, -1]  +  self.dt/(mu0*eps0*self.dy) * (self.A_pol @ self.Bz[QMw.x1:QMw.x2+1, QMw.y2] - QMw.X[self.nx + 1:, -1]) # Stitching upper interface @ Uchie
             QMw.ex[:, 0] = QMw.ex[:, 0]  -  self.dt/(mu0*eps0*self.dy) * (self.A_pol @ self.Bz[QMw.x1:QMw.x2+1, QMw.y1-1] - QMw.X[self.nx + 1:, 0]) # Stitching down interface @ Uchie
             
+            QMw.ey = QMw.X[:self.nx+1, :]
             QMw.eymid = 1/2*(eyold+QMw.X[:self.nx+1, :])
         
     
@@ -408,7 +410,7 @@ class Yee_UCHIE:
 ########## Fill in the parameters here ################
 Nx = 301
 Ny = 301
-Nt = 40000
+Nt = 1000
 
 dx = 0.25e-10 # m
 dy = 0.25e-10 # ms
@@ -419,8 +421,8 @@ Ly = 3/5*Ny*dy
 n = 5 #@ numbers of Subgridding in one grid
 N_sub = 15 #@ How much grid you want to take to subgrid
 
-x_sub1 = Nx//2*dx #@ The locationwhere the first subgridding should happen
-x_sub2 = 2*Nx//3*dx #@ The locationwhere the first subgridding should happen
+x_sub1 = Nx//3*dx #@ The location where the first subgridding should happen
+x_sub2 = 2*Nx//3*dx #@ The location where the scond subgridding should happen
 
 QMxpos1 = n*N_sub//2
 QMxpos2 = n*N_sub//2
@@ -431,13 +433,13 @@ NyQM = int(2*Ny/5)
 #create the source
 xs = 1/4*Nx*dx
 ys = Ny/2*dy
-tc = dt*Nt/6
+tc = dt*Nt/5
 sigma = tc/10
 J0 = 5e23
 J0 = 1e2/dx/dy
 source = Source(xs, ys, J0, tc, sigma)
 
-N = 10e7 #particles/m2
+N = 10e16 #particles/m2
 #NyQM = int(2*Ny/3)
 order = 'fourth'
 omega = 50e14 #[rad/s]
