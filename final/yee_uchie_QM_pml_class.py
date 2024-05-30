@@ -92,7 +92,7 @@ class Recorder:
 
 ### Creating the UCHIE scheme with the QM wire ###
 class QM_wire:
-    def __init__(self, x1, x2, y1, y2, n, nx, ny, QMscheme, QMxpos, X, ex, M1_inv, M1_M2, eymid, A_pol):
+    def __init__(self, x1, x2, y1, y2, n, nx, ny, QMscheme, QMxpos, X, ex, M1_inv, M1_M2,ey, eymid, A_pol):
         self.x1 = x1 # Left interface of the UCHIE region on the x-axis
         self.x2 = x2 # Right interface of the UCHIE region on the x-axis
         self.y1 = y1 # Bottom interface of the UCHIE region on the y-axis
@@ -106,6 +106,7 @@ class QM_wire:
         self.ex = ex # Matrix with the unkown discrete field quantities in UCHIE
         self.M1_inv = M1_inv # Matrix inverse of LHS of the matrix equation, see report
         self.M1_M2 = M1_M2 # the product M1_inv @ M2
+        self.ey = ey
         self.eymid = eymid # The e_y field on the location of the QM wi
         self.data = [] # Field data of the UCHIE region will be saved here
         self.A_pol = A_pol # Interpolation matrix needed for stitching, see report
@@ -175,7 +176,7 @@ class Yee_UCHIE:
             ex = np.zeros((nx+1, ny+1)) # Matrix with the unkown discrete field quantities in UCHIE
             
             eymid = np.zeros((nx+1,ny )) # e_y field on the QM wire
-            
+            ey =  np.zeros((nx+1,ny ))
             #locations of the subgridding UCHIE region
             x1 = wire.x_sub
             x2 = x1 + wire.N_sub*dx
@@ -229,7 +230,7 @@ class Yee_UCHIE:
             y1 = int(round(y1/dy))
             y2 = int(round(y2/dy))
 
-            self.QMwires.append(QM_wire(x1, x2, y1, y2, wire.n, nx, ny, wire.QMscheme, wire.QMxpos, X, ex, M1_inv, M1_M2, eymid, A_pol))
+            self.QMwires.append(QM_wire(x1, x2, y1, y2, wire.n, nx, ny, wire.QMscheme, wire.QMxpos, X, ex, M1_inv, M1_M2, ey, eymid, A_pol))
         
         
 
@@ -259,7 +260,7 @@ class Yee_UCHIE:
             if self.coupled:
                 for QMw in self.QMwires:
                     slice = int(1/2*(QMw.ny-QMw.QMscheme.Ny))
-                    QMw.QMscheme.update(QMw.eymid[QMw.QMxpos, slice:-slice], time_step)
+                    QMw.QMscheme.update(QMw.ey[QMw.QMxpos, slice:-slice],QMw.eymid[QMw.QMxpos, slice:-slice], time_step)
             
 
             # Field update in UCHIE region updated, bz and ey with implicit
@@ -306,7 +307,7 @@ class Yee_UCHIE:
             Y = QMw.ex[:-1, 1:] + QMw.ex[1:, 1:] - QMw.ex[:-1, :-1] - QMw.ex[1:, :-1]
             slice = int(1/2*(QMw.ny-QMw.QMscheme.Ny))
             if self.coupled:
-                Y[QMw.QMxpos, slice :-slice]+= -2 * (1 / eps0) * QMw.QMscheme.Jmid # Adding the quantum curren to the e_y field
+                Y[QMw.QMxpos, slice :-slice]+= +2 * (1 / eps0) * QMw.QMscheme.J # Adding the quantum curren to the e_y field
             
             eyold = QMw.X[:QMw.nx+1, :]
             
@@ -317,7 +318,8 @@ class Yee_UCHIE:
             QMw.ex[:, 1:-1] = QMw.ex[:, 1:-1]  +  self.dt/(mu0*eps0*self.dy) * (QMw.X[QMw.nx + 1:, 1:] - QMw.X[QMw.nx + 1:, :-1]) # Explicit update of e_x
             QMw.ex[:, -1] = QMw.ex[:, -1]  +  self.dt/(mu0*eps0*self.dy) * (QMw.A_pol @ self.Bz[QMw.x1:QMw.x2+1, QMw.y2] - QMw.X[QMw.nx + 1:, -1]) # Stitching upper interface @ Uchie
             QMw.ex[:, 0] = QMw.ex[:, 0]  -  self.dt/(mu0*eps0*self.dy) * (QMw.A_pol @ self.Bz[QMw.x1:QMw.x2+1, QMw.y1-1] - QMw.X[QMw.nx + 1:, 0]) # Stitching down interface @ Uchie
-            
+
+            QMw.ey = QMw.X[:QMw.nx+1, :]
             QMw.eymid = 1/2*(eyold+QMw.X[:QMw.nx+1, :])
         
     

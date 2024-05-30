@@ -112,15 +112,15 @@ class QM:
         return psi
 
     ### Update ###
-    def update(self,efield,n):
+    def update(self,efield,efieldmid,n):
         #E = efield.generate((n)*dt)*np.ones(Ny)
         #E = efield.generate((n)*self.dt)*np.ones(self.Ny)
         #E = efield.generate((n)*dt, omega=omegaHO)*np.ones(Ny)
         #efield*=100
         #E= 0
-        J_old= self.J
+        #J_old= self.J
         PsiReo = self.PsiRe
-        self.PsiRe = PsiReo -self.hbar*self.dt/(2*self.m)*self.diff(self.PsiIm) - self.dt/self.hbar*(self.q*self.r*efield-self.potential.V())*self.PsiIm
+        self.PsiRe = PsiReo -self.hbar*self.dt/(2*self.m)*self.diff(self.PsiIm) - self.dt/self.hbar*(self.q*self.r*efieldmid-self.potential.V())*self.PsiIm
         #PsiRe = PsiRe -hbar*dt/(2*m)*self.diff(PsiIm,dy,order) - dt/hbar*(-potential.V())*PsiIm
         #print(self.PsiRe)
         self.PsiRe[0] = 0
@@ -143,7 +143,7 @@ class QM:
         self.J[-1]= 0
         self.J *= self.q*self.N
 
-        self.Jmid = (self.J+J_old)/2
+        #self.Jmid = (self.J+J_old)/2
         #print(self.J.shape)
 
         Psi = self.PsiRe+ 1j*PsiImhalf
@@ -154,7 +154,7 @@ class QM:
         prob = self.PsiRe**2  + PsiImhalf**2
 
         #energy = np.sum(np.conj(Psi)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(Psi)))
-        energy = np.trapz((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm))dx =self.dy)
+        energy = np.trapz((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)),dx =self.dy)
         #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)))#+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
         #energy = np.sum(np.conj(Psi)*(-self.hbar**2/(2*self.m)*self.diff(Psi)*(Psi)))
         #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
