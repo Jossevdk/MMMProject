@@ -13,22 +13,19 @@ import time
 from tqdm import tqdm
 
 
-
+### Parameters and universal constants ###
 eps0 = ct.epsilon_0
 mu0 = ct.mu_0
 hbar = ct.hbar #J⋅s
 m = ct.electron_mass*0.15
 q = -ct.elementary_charge
 c0 = ct.speed_of_light 
-
-
 Z0 = np.sqrt(mu0/eps0)
 
 
-class new_class:
-    def __init__(self) -> None:
-        pass
-    
+
+
+### Create Gaussian magnetic current source ###
 class Source:
     def __init__(self, x, y, J0, tc, sigma):
         self.x = x
@@ -40,6 +37,10 @@ class Source:
     def J(self, t):
         return self.J0*np.exp(-(t-self.tc)**2/(2*self.sigma**2))
 
+
+
+
+### Functions needed for the PML in the YEE region ###
 def genKy(Ny, Nx, pml_nl, m, dy):
     Ky = np.zeros((Nx+1, Ny+1))
     kmax = -np.log(np.exp(-16))*(m+1)/(2*np.sqrt(ct.mu_0/ct.epsilon_0)*pml_nl*dy)
@@ -57,84 +58,88 @@ def genKx(Ny, Nx, pml_nl, m, dx):
     return Kx
 
 
+
+### CLass with the parameters for the UCHIE region ###
 class QM_UCHIE_params:
     def __init__(self, Ly, n, N_sub, x_sub, QMxpos, QMscheme):
-        self.Ly = Ly
-        self.n = n 
-        self.N_sub = N_sub
-        self.x_sub = x_sub
-        self.QMscheme = QMscheme
-        self.QMxpos = QMxpos
+        self.Ly = Ly # Length of UCHIE region
+        self.n = n # numbers of subgridding in one coarse grid
+        self.N_sub = N_sub # Numbers of coarse grid to subgrid
+        self.x_sub = x_sub # Location where the subgridding/UCHIE starts
+        self.QMscheme = QMscheme # Location where the QM wire occurs in the UCHIE region
+        self.QMxpos = QMxpos # Location where the QM wire occurs in the UCHIE region
         
+
         
+
+### Creating the recorder on the locations (x, y) where the fields can be saved ###
 class Recorder:
     def __init__(self, x, y):
         self.x = x
         self.y = y
+
         self.data = []          # data of the field will be added in this list
         self.data_time = []     # data of the time will be added in this list
 
+
     # adding the measurement of the field to the data
     def save_data(self, field, t):
-        self.data.append(field) # appending a measurement to the list
-        self.data_time.append(t)
+        self.data.append(field) # Save the field data here
+        self.data_time.append(t) # Save the time data here
         
+
+
+
+### Creating the UCHIE scheme with the QM wire ###
 class QM_wire:
     def __init__(self, x1, x2, y1, y2, n, nx, ny, QMscheme, QMxpos, X, ex, M1_inv, M1_M2, eymid, A_pol):
-        self.x1 = x1
-        self.x2 = x2
-        self.y1 = y1
-        self.y2 = y2
-        self.n = n
-        self.nx = nx
-        self.ny = ny
-        self.QMscheme = QMscheme
-        self.QMxpos = QMxpos
-        self.X = X
-        self.ex = ex
-        self.M1_inv = M1_inv
-        self.M1_M2 = M1_M2
-        self.eymid = eymid
-        self.data = []
-        self.A_pol = A_pol
+        self.x1 = x1 # Left interface of the UCHIE region on the x-axis
+        self.x2 = x2 # Right interface of the UCHIE region on the x-axis
+        self.y1 = y1 # Bottom interface of the UCHIE region on the y-axis
+        self.y2 = y2 # Upper interface of the UCHIE region on the y-axis
+        self.n = n # Numbers of subgridding in one coarse grid
+        self.nx = nx # numbers of cells in x-direction
+        self.ny = ny # Numbers of cells in y-direction
+        self.QMscheme = QMscheme # Location where the QM wire occurs in the UCHIE region
+        self.QMxpos = QMxpos # Location where the QM wire occurs in the UCHIE region
+        self.X = X # Matrix with the unkown e_y and h_z discrete field quantities in UCHIE, see report
+        self.ex = ex # Matrix with the unkown discrete field quantities in UCHIE
+        self.M1_inv = M1_inv # Matrix inverse of LHS of the matrix equation, see report
+        self.M1_M2 = M1_M2 # the product M1_inv @ M2
+        self.eymid = eymid # The e_y field on the location of the QM wi
+        self.data = [] # Field data of the UCHIE region will be saved here
+        self.A_pol = A_pol # Interpolation matrix needed for stitching, see report
 
 
 
-###### The Yee + Uchie scheme ######
-###### ! There can be a mistake with mu_0 since assigment is given for H_z while paper for B_z 
+###### The uniform YEE-UCHIE subgridding scheme ######
 class Yee_UCHIE:
     def __init__(self, Nx, Ny, Nt, dx, dy, dt, sources, pml_nl, pml_m, qm_uchie_params = [], recorders=None, coupled=True):
         
+        self.coupled = coupled # When True, coupling between QM and EM will hapen
+        self.Nx = Nx # Numbers of coarse grids in x-direction
+        self.Ny = Ny # Numbers of coarse grids in y-direction
+        self.Nt = Nt # Number of update steps
         
-        self.coupled = coupled
-        self.Nx = Nx
-        self.Ny = Ny
-        self.Nt = Nt
-        
-        self.dx = dx
-        self.dy = dy
-        self.dt = dt
-
-        
+        self.dx = dx # discretisation in coarse grid x-direction
+        self.dy = dy # discretisation in coarse grid y-direction
+        self.dt = dt # time discretisation 
 
         self.sources = sources
-     
         self.recorders = recorders
 
-     
-        
-
         # Capital letters are used for the fields in the YEE
-        
         self.Ex = np.zeros((Nx+1, Ny+1))
         self.Ey = np.zeros((Nx, Ny))
-
         self.Bz = np.zeros((Nx+1, Ny))
         self.Bzx = np.zeros((Nx+1, Ny))
         self.Bzy = np.zeros((Nx+1, Ny))
+
+
+        # parameters needed for PML
         Ky = genKy(Ny, Nx, pml_nl, pml_m, dy)
         Kx = genKx(Ny, Nx, pml_nl, pml_m, dx)
-        #print(Kx, "\n")
+
         self.KxE = (2*np.full((Nx+1, Ny+1), ct.epsilon_0) - Kx*dt)/(2*np.full((Nx+1, Ny+1), ct.epsilon_0) + Kx*dt)
         self.KyE = (2*np.full((Nx+1, Ny+1), ct.epsilon_0) - Ky*dt)/(2*np.full((Nx+1, Ny+1), ct.epsilon_0) + Ky*dt)
         self.KxB = (2*np.full((Nx+1, Ny+1), ct.mu_0) - ct.mu_0*Kx*dt/ct.epsilon_0)/(2*np.full((Nx+1, Ny+1), ct.mu_0) + ct.mu_0*Kx*dt/ct.epsilon_0)
@@ -150,79 +155,66 @@ class Yee_UCHIE:
         self.KxEB = (self.KxEB[:-1,:-1] +self.KxEB[1:,:-1]+self.KxEB[:-1,1:]+self.KxEB[1:,1:])/4
         self.KxBE = (self.KxBE[1:-1, :-1] + self.KxBE[1:-1, 1:])/2
         self.KyBE = (self.KyBE[1:-1, :-1] + self.KyBE[1:-1, 1:])/2
-        # small letters used for fields in UCHIE
-       
-        #@ ey = X[:nx+1, :]
-        #@ bz = X[nx+1:, :]
-       
+    
 
+        # The field data will be saved here
         self.data_yee = []
         self.data_uchie = [[] for i in range(len(qm_uchie_params))]
-        
         self.data_time = []
 
-
-
-        #Initialize the matrices for the UCHIE calculation, see eq (26)
-        # ! It is even possible to just make the A_D and A_I matrix bigger instead of artificialy adding a row for the stitching
-      
+        # Putting all the QM and UCHIE subgridding region in one list
         self.QMwires = []
-        
+        for wire in qm_uchie_params:
+            dx_f = dx/wire.n # discretisation step in x-direction in fine grid, UCHIE region
 
-        for p in qm_uchie_params:
-            dx_f = dx/p.n # @ The dx of your subgrid/UCHIE region
-
-            nx = p.n*p.N_sub
-            ny = int(p.Ly/dy)
-            A_pol = (self.create_interpolation_matrix(p.n, nx, p.N_sub))
+            nx = wire.n*wire.N_sub # Numbers of fine gridding x-direction in UCHIE region
+            ny = int(wire.Ly/dy) # Numbers of grids in y-direction of the UCHIE region
+            A_pol = (self.create_interpolation_matrix(wire.n, nx, wire.N_sub)) # Interpolation matrix needed for stitching
             
-            X = np.zeros((2*nx+2, ny))
-            ex = np.zeros((nx+1, ny+1))
+            X = np.zeros((2*nx+2, ny)) # Matrix with the unkown e_y and h_z discrete field quantities in UCHIE, see report
+            ex = np.zeros((nx+1, ny+1)) # Matrix with the unkown discrete field quantities in UCHIE
             
-            eymid = np.zeros((nx+1,ny ))
+            eymid = np.zeros((nx+1,ny )) # e_y field on the QM wire
             
-            x1 = p.x_sub
-            x2 = x1 + p.N_sub*dx
-            y1 = (self.Ny-ny)//2 * dy #@ The last index of just under the UCHIE in the Yee region
-            y2 = y1 + ny * dy #@ The first index of just above the UCHIe in the Yee region
+            #locations of the subgridding UCHIE region
+            x1 = wire.x_sub
+            x2 = x1 + wire.N_sub*dx
+            y1 = (self.Ny-ny)//2 * dy
+            y2 = y1 + ny * dy 
 
-
-        #@ x_sub is the index where the subgridding is happening, start counting from 0
-
-            
-                
-             # @ ny is the grid size of the UCHIE region
-
-        
+            # Differntiator matrix
             A_D = np.diag(-1 * np.ones(nx+1), 0) + np.diag(np.ones(nx), 1)
             A_D = A_D[:-1, :]
 
-
+            #Interpolator matrix
             A_I = np.zeros((nx, nx + 1))
             np.fill_diagonal(A_I, 1)
             np.fill_diagonal(A_I[:,1:], 1)
-
-            M1_1 = np.zeros(2*nx+2) # extra row for Stitching left interface
+            
+            
+            # Creating the matrix of LHS of the matrix equation (see report)
+            M1_1 = np.zeros(2*nx+2) 
             M1_1[0] = 1/dx
             M1_1[nx+1] = 1/dt
 
             M1_2 = np.hstack((A_D/dx_f, A_I/dt))
 
-            M1_3 = np.zeros(2*nx+2) # The row to stitch the right interface with Yee, see eq (30)
+            M1_3 = np.zeros(2*nx+2)
             M1_3[nx] = -1/dx
             M1_3[-1] = 1/dt
 
             M1_4 = np.hstack((eps0*A_I/dt, A_D/(mu0*dx_f)))
 
             M1 = np.vstack((M1_1, M1_2, M1_3, M1_4))
+
             M1_inv = (csr_matrix(np.linalg.inv(M1)))
 
-
-            M2_1 = np.zeros(2*nx+2) # Stitching left interface
+            # Creating the matrix of the RHS of the matrix equation
+            M2_1 = np.zeros(2*nx+2) 
             M2_1[0] = -1/dx
             M2_1[nx+1] = 1/dt
             M2_2 = np.hstack((-1/dx_f*A_D, 1/dt*A_I))
-            M2_3 = np.zeros(2*nx+2) # The row to stich the right interface with Yee, see eq(30)
+            M2_3 = np.zeros(2*nx+2)
             M2_3[nx] = 1/dx
             M2_3[-1] = 1/dt
 
@@ -231,44 +223,46 @@ class Yee_UCHIE:
             M2 = np.vstack((M2_1, M2_2, M2_3, M2_4))
             M1_M2 = (csr_matrix(M1_inv @ M2))
             
+            # discretisation of location to get index numbers
             x1 = int(round(x1/dx))
             x2 = int(round(x2/dx))
             y1 = int(round(y1/dy))
             y2 = int(round(y2/dy))
 
-            self.QMwires.append(QM_wire(x1, x2, y1, y2, p.n, nx, ny, p.QMscheme, p.QMxpos, X, ex, M1_inv, M1_M2, eymid, A_pol))
+            self.QMwires.append(QM_wire(x1, x2, y1, y2, wire.n, nx, ny, wire.QMscheme, wire.QMxpos, X, ex, M1_inv, M1_M2, eymid, A_pol))
         
         
 
-    # Procedure from the paper is being followed
+    ## Calculations of the scheme, procedure from report is followed ##
     def calculate_fields(self):
 
-        
 
         for time_step in tqdm(range(0, self.Nt)):
 
 
-            ### field in Yee-region update ###
-            self.Bz_old = self.Bz # TODO only the values at the interface should be saved see eq (30) of paper
-            #self.Bz[1:-1, :] = Bz_old[1:-1,:]  +  self.dt/self.dy * (self.Ex[1:-1, 1:] - self.Ex[1:-1, :-1])  -  self.dt/self.dx * (self.Ey[1:, :] - self.Ey[:-1, :]) # Update b field for left side of the uchie grid
-            self.Bzy[1:-1, :] = self.KyB * self.Bzy[1:-1, :]  +  self.KyBE* (self.Ex[1:-1, 1:] - self.Ex[1:-1, :-1])   # Update b field for right side of the uchie grid
-            self.Bzx[1:-1, :] = self.KxB* self.Bzx[1:-1, :]  - self.KxBE* (self.Ey[1:, :] - self.Ey[:-1, :]) # Update b field for right side of the uchie grid
-            for source in self.sources:
-                self.Bzy[int(round(source.x/self.dx)), int(round(source.y/self.dy))] -= self.dt*source.J(time_step*self.dt)/2#? check if the source is added on the correct location also do we need to multiply with dx dy?
-                self.Bzx[int(round(source.x/self.dx)), int(round(source.y/self.dy))] -= self.dt*source.J(time_step*self.dt)/2#? check if the source is added on the correct location also do we need to multiply with dx dy?
+            # Update B field in Yee-region
+            self.Bz_old = self.Bz 
+            self.Bzy[1:-1, :] = self.KyB * self.Bzy[1:-1, :]  +  self.KyBE* (self.Ex[1:-1, 1:] - self.Ex[1:-1, :-1])  
+            self.Bzx[1:-1, :] = self.KxB* self.Bzx[1:-1, :]  - self.KxBE* (self.Ey[1:, :] - self.Ey[:-1, :]) 
 
-            
-            self.stitching_B() # Stitching first subgrid
-            
+            # Add the magnetic source in the Yee region in the B-field
+            for source in self.sources:
+                self.Bzy[int(round(source.x/self.dx)), int(round(source.y/self.dy))] -= self.dt*source.J(time_step*self.dt)/2
+                self.Bzx[int(round(source.x/self.dx)), int(round(source.y/self.dy))] -= self.dt*source.J(time_step*self.dt)/2
+
+            self.stitching_B() # Stitching of the upper and lower interface to update B field in YEE region
             
             self.Bz = self.Bzx + self.Bzy
-            #Update QM schemes
+
+
+            # e_y fields will be used to update the QM scheme
             if self.coupled:
                 for QMw in self.QMwires:
                     slice = int(1/2*(QMw.ny-QMw.QMscheme.Ny))
                     QMw.QMscheme.update(QMw.eymid[QMw.QMxpos, slice:-slice], time_step)
             
-            ### Field update in UCHIE region updated, bz and ey with implicit ###
+
+            # Field update in UCHIE region updated, bz and ey with implicit
             self.uchie_update()
             
             
@@ -276,9 +270,9 @@ class Yee_UCHIE:
             self.Ex[1:-1, 1:-1] = self.KyE[1:-1, 1:-1]*self.Ex[1:-1, 1:-1]  +  self.KyEB[1:-1,1:-1] * (self.Bz[1:-1,1:] - self.Bz[1:-1,:-1])
             self.Ey = self.KxE *self.Ey  -  self.KxEB * (self.Bz[1:,:] - self.Bz[:-1,:])
 
-            self.stitching_E()
+            self.stitching_E() # Stitching of the left and right interface to update E_y field in YEE at the interface
 
-            ### Save the data's ###
+            # Save the data's
             if time_step%(self.Nt/100)==0:
                 self.data_yee.append(self.Bz.T)
                 for data, QMw in zip(self.data_uchie, self.QMwires):
@@ -291,14 +285,13 @@ class Yee_UCHIE:
 
 
 
-
-    # Create interpolation matrix for the stitching
+    ## Create interpolation matrix for the stitching, see report ##
     def create_interpolation_matrix(self, n, nx, N_sub):
         A_pol = np.zeros((nx+1, N_sub+1))
         for i in range(N_sub):
             A_1 = np.arange(n+1)/n 
             A_2 = A_1[::-1]
-            A = np.vstack((A_2, A_1)).T #@ The interpolation matrix, see notes
+            A = np.vstack((A_2, A_1)).T 
             A = A[:-1,:]
             A_pol[i*n:(i+1)*n, i:i+2] = A
         A_pol[-1, -1] = 1
@@ -306,43 +299,42 @@ class Yee_UCHIE:
     
 
 
-    ### Field update in UCHIE region updated, bz and ey with implicit ###
-    #! I followed the stitching procedure from the paper, the stitching from the syllabus is little bit different
+    ## Field update in UCHIE region updated, bz and ey with implicit and e_x explicit##
     def uchie_update(self):
         
         for QMw in self.QMwires:
             Y = QMw.ex[:-1, 1:] + QMw.ex[1:, 1:] - QMw.ex[:-1, :-1] - QMw.ex[1:, :-1]
             slice = int(1/2*(QMw.ny-QMw.QMscheme.Ny))
             if self.coupled:
-                Y[QMw.QMxpos, slice :-slice]+= -2 * (1 / eps0) * QMw.QMscheme.Jmid
+                Y[QMw.QMxpos, slice :-slice]+= -2 * (1 / eps0) * QMw.QMscheme.Jmid # Adding the quantum curren to the e_y field
             
             eyold = QMw.X[:QMw.nx+1, :]
             
             U_left = 1/self.dy*(QMw.ex[0, 1: ] + self.Ex[QMw.x1-1, QMw.y1+1:QMw.y2+1] - QMw.ex[0, :-1] - self.Ex[QMw.x1-1, QMw.y1:QMw.y2])  +  1/self.dx*(self.Ey[QMw.x1-1, QMw.y1:QMw.y2] + self.Ey[QMw.x1-2, QMw.y1:QMw.y2])  -  1/self.dt*(self.Bz[QMw.x1-1, QMw.y1:QMw.y2] - self.Bz_old[QMw.x1-1, QMw.y1:QMw.y2]) # UCHIE stitching left interface
             U_right = 1/self.dy*(QMw.ex[-1, 1: ] + self.Ex[QMw.x2+1, QMw.y1+1:QMw.y2+1] - QMw.ex[-1, :-1] - self.Ex[QMw.x2+1, QMw.y1:QMw.y2])  -  1/self.dx*(self.Ey[QMw.x2, QMw.y1:QMw.y2] + self.Ey[QMw.x2+1, QMw.y1:QMw.y2])  -  1/self.dt*(self.Bz[QMw.x2+1, QMw.y1:QMw.y2] - self.Bz_old[QMw.x2+1, QMw.y1:QMw.y2]) # UCHIE stitching right interface
             
-            QMw.X = QMw.M1_M2.dot(QMw.X) + QMw.M1_inv.dot(np.vstack((U_left, Y/self.dy, U_right, np.zeros((QMw.nx, QMw.ny)))))
-            QMw.ex[:, 1:-1] = QMw.ex[:, 1:-1]  +  self.dt/(mu0*eps0*self.dy) * (QMw.X[QMw.nx + 1:, 1:] - QMw.X[QMw.nx + 1:, :-1])
+            QMw.X = QMw.M1_M2.dot(QMw.X) + QMw.M1_inv.dot(np.vstack((U_left, Y/self.dy, U_right, np.zeros((QMw.nx, QMw.ny))))) # Implicit update for e_y and b_z
+            QMw.ex[:, 1:-1] = QMw.ex[:, 1:-1]  +  self.dt/(mu0*eps0*self.dy) * (QMw.X[QMw.nx + 1:, 1:] - QMw.X[QMw.nx + 1:, :-1]) # Explicit update of e_x
             QMw.ex[:, -1] = QMw.ex[:, -1]  +  self.dt/(mu0*eps0*self.dy) * (QMw.A_pol @ self.Bz[QMw.x1:QMw.x2+1, QMw.y2] - QMw.X[QMw.nx + 1:, -1]) # Stitching upper interface @ Uchie
             QMw.ex[:, 0] = QMw.ex[:, 0]  -  self.dt/(mu0*eps0*self.dy) * (QMw.A_pol @ self.Bz[QMw.x1:QMw.x2+1, QMw.y1-1] - QMw.X[QMw.nx + 1:, 0]) # Stitching down interface @ Uchie
             
             QMw.eymid = 1/2*(eyold+QMw.X[:QMw.nx+1, :])
         
     
-
-
+    ## Stitching conditions, updating the B fields in YEE at the upper and bottom interface ##
     def stitching_B(self):
         for QMw in self.QMwires:
             self.Bzx[QMw.x1: QMw.x2+1, QMw.y1:QMw.y2] = 0 # Set the B fields in the UCHIE region to zero, in order not the double count in the updates
-            self.Bzx[QMw.x1:QMw.x2+1, QMw.y2] = self.Bzx[QMw.x1:QMw.x2+1, QMw.y2]  -  self.dt/self.dy * QMw.ex[::QMw.n, -1]/2 # Stitching upper interface #TODO see course notes for more accurate
-            self.Bzx[QMw.x1:QMw.x2+1, QMw.y1-1] = self.Bzx[QMw.x1:QMw.x2+1, QMw.y1-1]  +  self.dt/self.dy * QMw.ex[::QMw.n, 0]/2  # Stitching lower interface #TODO see course notes for more accurate
+            self.Bzx[QMw.x1:QMw.x2+1, QMw.y2] = self.Bzx[QMw.x1:QMw.x2+1, QMw.y2]  -  self.dt/self.dy * QMw.ex[::QMw.n, -1]/2 # Stitching upper interface  
+            self.Bzx[QMw.x1:QMw.x2+1, QMw.y1-1] = self.Bzx[QMw.x1:QMw.x2+1, QMw.y1-1]  +  self.dt/self.dy * QMw.ex[::QMw.n, 0]/2  # Stitching lower interface 
 
             self.Bzy[QMw.x1: QMw.x2+1, QMw.y1:QMw.y2] = 0 # Set the B fields in the UCHIE region to zero, in order not the double count in the updates
-            self.Bzy[QMw.x1:QMw.x2+1, QMw.y2] = self.Bzy[QMw.x1:QMw.x2+1, QMw.y2]  -  self.dt/self.dy * QMw.ex[::QMw.n, -1]/2 # Stitching upper interface #TODO see course notes for more accurate
-            self.Bzy[QMw.x1:QMw.x2+1, QMw.y1-1] = self.Bzy[QMw.x1:QMw.x2+1, QMw.y1-1]  +  self.dt/self.dy * QMw.ex[::QMw.n, 0]/2  # Stitching lower interface #TODO see course notes for more accurate
+            self.Bzy[QMw.x1:QMw.x2+1, QMw.y2] = self.Bzy[QMw.x1:QMw.x2+1, QMw.y2]  -  self.dt/self.dy * QMw.ex[::QMw.n, -1]/2 # Stitching upper interface 
+            self.Bzy[QMw.x1:QMw.x2+1, QMw.y1-1] = self.Bzy[QMw.x1:QMw.x2+1, QMw.y1-1]  +  self.dt/self.dy * QMw.ex[::QMw.n, 0]/2  # Stitching lower interface 
     
 
 
+    ## Stitching conditions, updating the E_y fields in Yee the left and right interface ##
     def stitching_E(self):
         for QMw in self.QMwires:
             self.Ey[QMw.x1-1, QMw.y1:QMw.y2] = self.Ey[QMw.x1-1, QMw.y1:QMw.y2]  -  self.dt/(self.dx*mu0*eps0) * QMw.X[QMw.nx+1, :] # stiching left interface
@@ -353,32 +345,24 @@ class Yee_UCHIE:
             
             
     
-
-
-
+    ## function to animate to simulation ##
     def animate_field(self):
 
         fig, ax = plt.subplots()
 
-        ax.set_xlabel("x-axis [k]")
-        ax.set_ylabel("y-axis [l]")
+        ax.set_xlabel("x-axis [m]")
+        ax.set_ylabel("y-axis [m]")
         ax.set_xlim(0, (self.Nx+1)*self.dx)
         ax.set_ylim(0, (self.Ny+1)*self.dy)
 
-        label = "Field"
-
-        
-        
-        # v = source.J0*dt * 0.05
         v = np.max(self.data_yee)*0.5
-        # vmax = np.percentile(electric_field, 95)
-        # v = source.J0*self.dx*self.dy/2*1000/Nt
-        #v = 1e2
         
+        # plot the sources
         for source in self.sources:
             xs = source.x
             ys = source.y
-            ax.plot(xs, ys+0.5*self.dy, color="purple", marker= "o", label="Source") # plot the source
+            ax.plot(xs, ys+0.5*self.dy, color="purple", marker= "o", label="Source")
+
 
         cax = ax.imshow(self.data_yee[0], vmin = -v, vmax = v, origin='lower', extent = [0, (self.Nx+1)*self.dx, self.dy/2, self.Ny*self.dy])
         ax.set_title("t = 0")
@@ -399,7 +383,6 @@ class Yee_UCHIE:
 
             ax.add_patch(rect)
 
-        
 
         def animate_frame(i):
             cax.set_array(self.data_yee[i])
@@ -412,68 +395,3 @@ class Yee_UCHIE:
         
         anim = animation.FuncAnimation(fig, animate_frame, frames = (len(self.data_yee)), interval=20)
         return anim
-
-
-            
-            
- 
-        
-
-
-
-# ########## Fill in the parameters here ################
-# Nx = 301
-# Ny = 301
-# Nt = 30000
-
-# dx = 0.25e-10 # m
-# dy = 0.25e-10 # ms
-# courant = 0.9 # !Courant number, for stability this should be smaller than 1
-# dt = courant * 1/(np.sqrt(1/dx**2 + 1/dy**2)*ct.c)
-
-# Ly = 3/5*Ny*dy
-# n = 5 #@ numbers of Subgridding in one grid
-# N_sub = 15 #@ How much grid you want to take to subgrid
-
-# x_sub1 = Nx//3*dx #@ The locationwhere the first subgridding should happen
-# x_sub2 = 2*Nx//3*dx #@ The locationwhere the first subgridding should happen
-
-# QMxpos1 = n*N_sub//2
-# QMxpos2 = n*N_sub//2
-
-
-# NyQM = int(2*Ny/5)
-
-# #create the source
-# xs = 1/4*Nx*dx
-# ys = Ny/2*dy
-# tc = dt*Nt/4
-# sigma = tc/10
-# J0 = 1e2/dx/dy
-# source = Source(xs, ys, J0, tc, sigma)
-
-# N = 10e7 #particles/m2
-# #NyQM = int(2*Ny/3)
-# order = 'fourth'
-# omega = 50e14 #[rad/s]
-# alpha = 0
-# potential = QM.Potential(m,omega, NyQM, dy)
-# #potential.V()
-
-# QMscheme1 = QM.QM(order,NyQM,dy, dt, hbar, m, q, alpha, potential, omega, N)
-# QMscheme2 = QM.QM(order,NyQM,dy, dt, hbar, m, q, alpha, potential, omega, N)
-
-# recorder1 = Recorder(0.75*Nx*dx, 0.5*Ny*dy, 2)
-# recorders = [recorder1]
-
-# start_time = time.time()
-# test = Yee_UCHIE(Nx, Ny, Nt, dx, dy, dt, Ly, n, N_sub, NyQM, x_sub1, x_sub2, eps0, mu0, source, QMscheme1 , QMscheme2, QMxpos1, QMxpos2, validation=false, recorders=recorders)
-# test.calculate_fields()
-# end_time = time.time()
-# print("Execution time:", end_time - start_time, "seconds")
-# test.animate_field()
-
-# QMscheme1.expvalues('energy')
-# QMscheme2.expvalues('energy')
-# test.validate(recorder1, source, dx, dy)
-
