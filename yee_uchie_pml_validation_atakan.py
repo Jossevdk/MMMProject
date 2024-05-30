@@ -380,7 +380,7 @@ class Yee_UCHIE:
         k0 = omega/ct.c
         z = k0*np.sqrt((x - source.x)**2 + (y - source.y)**2)
 
-        Hz_ana = -source.J0*omega*eps0/4 * hankel2(0, z)
+        Hz_ana = -source.J0*self.dx*self.dy*omega*eps0/4 * hankel2(0, z)
 
         #print( Hz_ana[1000]/FT/spectralcontent
         plt.plot(omega, np.abs(FT/(spectralcontent)*source.J0))

@@ -300,7 +300,7 @@ class Yee_UCHIE:
         for QMw in self.QMwires:
             Y = QMw.ex[:-1, 1:] + QMw.ex[1:, 1:] - QMw.ex[:-1, :-1] - QMw.ex[1:, :-1]
             slice = int(1/2*(self.ny-self.NyQM))
-            Y[QMw.QMxpos, slice :-slice]+= -2 * (1 / Z0) * QMw.QMscheme.Jmid
+            Y[QMw.QMxpos, slice :-slice]+= +2 * (1 / Z0) * QMw.QMscheme.Jmid
             
             eyold = QMw.X[:self.nx+1, :]
             
@@ -408,7 +408,7 @@ class Yee_UCHIE:
 ########## Fill in the parameters here ################
 Nx = 301
 Ny = 301
-Nt = 30000
+Nt = 40000
 
 dx = 0.25e-10 # m
 dy = 0.25e-10 # ms
@@ -419,7 +419,7 @@ Ly = 3/5*Ny*dy
 n = 5 #@ numbers of Subgridding in one grid
 N_sub = 15 #@ How much grid you want to take to subgrid
 
-x_sub1 = Nx//3*dx #@ The locationwhere the first subgridding should happen
+x_sub1 = Nx//2*dx #@ The locationwhere the first subgridding should happen
 x_sub2 = 2*Nx//3*dx #@ The locationwhere the first subgridding should happen
 
 QMxpos1 = n*N_sub//2
@@ -431,8 +431,9 @@ NyQM = int(2*Ny/5)
 #create the source
 xs = 1/4*Nx*dx
 ys = Ny/2*dy
-tc = dt*Nt/4
+tc = dt*Nt/6
 sigma = tc/10
+J0 = 5e23
 J0 = 1e2/dx/dy
 source = Source(xs, ys, J0, tc, sigma)
 

@@ -154,19 +154,19 @@ class QM:
         prob = self.PsiRe**2  + PsiImhalf**2
 
         #energy = np.sum(np.conj(Psi)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(Psi)))
-        energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
+        energy = np.trapz((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)),dx = self.dy)
         #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)))#+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
         #energy = np.sum(np.conj(Psi)*(-self.hbar**2/(2*self.m)*self.diff(Psi)*(Psi)))
         #energy = np.sum((self.PsiRe-1j*self.PsiIm)*(-self.hbar**2/(2*self.m)*self.diff(self.PsiRe+1j*self.PsiIm)+self.potential.V()*(self.PsiRe+1j*self.PsiIm)))
-        beam_energy = np.sum(np.conj(Psi)*(-self.q*self.r *efield*(Psi)))
+        beam_energy = np.trapz(np.conj(Psi)*(-self.q*self.r *efield*(Psi)),dx = self.dy)
         
         self.data_time.append(n*self.dt)
         self.data_prob.append(prob.copy())
-        self.data_mom.append(np.sum(momentum))
+        self.data_mom.append(np.trapz(momentum, dx = self.dy))
         self.data_energy.append(energy)
         self.beam_energy.append(beam_energy)
-        self.data_current.append(np.sum(self.J))
-        self.data_position.append(np.sum(prob*self.r*self.dy))
+        self.data_current.append(np.trapz(self.J,dx = self.dy))
+        self.data_position.append(np.trapz(prob*self.r*self.dy,dx = self.dy))
         
         #return  prob, momentum
     

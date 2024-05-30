@@ -8,8 +8,6 @@ from matplotlib.animation import FuncAnimation
 #For the QM part, we require a simple 1D FDTD scheme
 
 
-#strategy: electric field from EM part is source in the interaction Hamiltionian. 
-#Output is a quantum current which serves as a source for EM part
 
 
 ### Electric field ###
@@ -37,6 +35,8 @@ class ElectricField:
     def _sinusoidal(self, t):
         #add damping function
         return self.amplitude * np.cos(self.omega * t)*2/np.pi* np.arctan(t/self.t0)
+    
+### Vector Potential for velocity gauge ###
     
 class vecpot:
     def __init__(self, dt, Nt, omega , amplitude=1.0):
@@ -528,6 +528,8 @@ order = 'fourth'
 
 QMscheme4 = QM(order,Ny, Nt, dy, dt, hbar, m, q, alpha, potential, omegaHO, N, gauge, omegafield = omegaHO, amplitude = amplitude, field_type = field_type)
 QMscheme4.calcwave()
+
+QMscheme4.expvalues('energy')
 
 plot = Plotting('Expectation')
 plot.plot(QMscheme4)
