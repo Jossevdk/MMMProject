@@ -235,7 +235,7 @@ class QM:
             plt.plot(self.data_position)
             plt.title('Position')
             plt.xlabel('time [s]')
-            plt.ylabel('Position [m]')
+            plt.ylabel('y [m]')
             plt.show()
             #exp= []
             # for i in range(1,len(data_time)):
@@ -284,9 +284,11 @@ class QM:
         #         #exp.append(np.sum(val[1:-1]))
 
         #return exp
-    def heatmap (self):
+    def heatmap(self):
         probsel = self.data_prob[::100]
+        plt.figure(figsize=(60, 6))
         plt.imshow(np.array(probsel).T)
+        
         plt.xlabel('time [s]')
         plt.ylabel('Electron Position [m]')
         plt.colorbar(label = r'$|\psi|^2$')
